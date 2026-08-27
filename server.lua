@@ -1,12 +1,14 @@
+local pixelbox = require("pixelbox_lite")
+
 local modemSide = "right"
 if peripheral.getType(modemSide) ~= "modem" and peripheral.getType(modemSide) ~= "wireless_modem" then
-    error("Wireless modem not found on the 'right' side of the server!")
+    error("Wireless modem not found on 'right' side!")
 end
 rednet.open(modemSide)
 
-print("Raycasting server started!")
+-- Инициализация Pixelbox
+local box = pixelbox.new(term.current())
 
--- Карта мира (1 — стена, 0 — пустота)
 local map = {
     {1,1,1,1,1,1,1,1},
     {1,0,0,0,0,0,0,1},
@@ -18,13 +20,13 @@ local map = {
     {1,1,1,1,1,1,1,1},
 }
 
--- Координаты игрока и угол обзора
 local px, py, pfa = 3.5, 3.5, 0
 
+-- Настройки плавной скорости и поворота
 local MOVE_SPEED = 0.08
 local ROT_SPEED = 0.05
 
-local screenWidth, screenHeight = term.getSize()
+local pw, ph = box.width, box.height
 
 local function isWall(x, y)
     local mx = math.floor(x) + 1
@@ -33,100 +35,72 @@ local function isWall(x, y)
     return map[my][mx] == 1
 end
 
--- Функция рэйкастинга с гранями стен
 local function renderRaycasting()
-    term.clear()
+    -- Быстрая очистка экрана через закрашивание буфера
+    box:rect(1, 1, pw, ph / 2, colors.cyan)      -- Небо
+    box:rect(1, ph / 2 + 1, pw, ph, colors.green) -- Пол
 
-    for x = 1, screenWidth do
-        local cameraX = 2 * x / screenWidth - 1
-        local rayAngle = pfa + math.atan(cameraX * 0.66)
+    -- Отрисовка 3D лучей
+    for x = 1, pw do
+        local camX = 2 * x / pw - 1
+        local rayAngle = pfa + math.atan(camX * 0.66)
 
-        local distanceToWall = 0
-        local hitWall = false
-        local side = 0 -- 0 для вертикальной грани, 1 для горизонтальной (нужно для затенения)
+        local dist = 0
+        local hit = false
+        local side = 0
 
         local eyeX = math.cos(rayAngle)
         local eyeY = math.sin(rayAngle)
 
-        while not hitWall and distanceToWall < 16 do
-            distanceToWall = distanceToWall + 0.05
-            local testX = math.floor(px + eyeX * distanceToWall)
-            local testY = math.floor(py + eyeY * distanceToWall)
-            
-            if testX < 0 or testX >= 8 or testY < 0 or testY >= 8 then
-                hitWall = true
-                distanceToWall = 16
-            else
-                local mx = testX + 1
-                local my = testY + 1
-                if mx >= 1 and mx <= 8 and my >= 1 and my <= 8 then
-                    if map[my][mx] == 1 then
-                        hitWall = true
-                        -- Проверяем, с какой стороны прилетел луч, чтобы сделать грань темнее
-                        local prevX = math.floor(px + eyeX * (distanceToWall - 0.05))
-                        if prevX ~= testX then
-                            side = 1
-                        end
-                    end
-                end
+        while not hit and dist < 16 do
+            dist = dist + 0.05
+            local tx = math.floor(px + eyeX * dist)
+            local ty = math.floor(py + eyeY * dist)
+
+            if tx < 0 or tx >= 8 or ty < 0 or ty >= 8 then
+                hit = true
+                dist = 16
+            elseif map[ty + 1] and map[ty + 1][tx + 1] == 1 then
+                hit = true
+                local prevX = math.floor(px + eyeX * (dist - 0.05))
+                if prevX ~= tx then side = 1 end
             end
         end
 
-        local ceiling = math.floor(screenHeight / 2 - screenHeight / distanceToWall)
-        local floor = screenHeight - ceiling
+        local wallHeight = math.floor(ph / dist)
+        local yStart = math.max(1, math.floor(ph / 2 - wallHeight / 2))
+        local yEnd = math.min(ph, math.floor(ph / 2 + wallHeight / 2))
 
-        for y = 1, screenHeight do
-            term.setCursorPos(x, y)
-            if y < ceiling then
-                -- Голубое небо
-                term.setBackgroundColor(colors.blue)
-                term.write(" ")
-            elseif y >= ceiling and y <= floor then
-                -- Стены: серые, а боковые грани (side == 1) делаем темно-серыми для объема
-                if side == 1 then
-                    term.setBackgroundColor(colors.gray)
-                else
-                    term.setBackgroundColor(colors.lightGray)
-                end
-                term.write(" ")
-            else
-                -- Зеленый пол
-                term.setBackgroundColor(colors.green)
-                term.write(" ")
-            end
-        end
+        local wallColor = (side == 1) and colors.gray or colors.lightGray
+        box:rect(x, yStart, 1, yEnd - yStart + 1, wallColor)
     end
+
+    box:draw()
 end
 
--- Основной игровой цикл
 while true do
     renderRaycasting()
 
-    local timerId = os.startTimer(0.03)
+    local timerId = os.startTimer(0.02)
     local event, p1, p2 = os.pullEvent()
 
-    if event == "rednet_message" then
-        local senderId, message = p1, p2
-        if type(message) == "table" and message.type == "key" then
-            local key = message.key
-            
-            local newX = px
-            local newY = py
-            
-            if key == keys.w then
-                newX = px + math.cos(pfa) * MOVE_SPEED
-                newY = py + math.sin(pfa) * MOVE_SPEED
-            elseif key == keys.s then
-                newX = px - math.cos(pfa) * MOVE_SPEED
-                newY = py - math.sin(pfa) * MOVE_SPEED
-            elseif key == keys.a then
-                pfa = pfa - ROT_SPEED
-            elseif key == keys.d then
-                pfa = pfa + ROT_SPEED
-            end
-            
-            if not isWall(newX, py) then px = newX end
-            if not isWall(px, newY) then py = newY end
+    if event == "rednet_message" and type(p2) == "table" and p2.type == "key" then
+        local key = p2.key
+        local newX, newY = px, py
+
+        if key == keys.w then
+            newX = px + math.cos(pfa) * MOVE_SPEED
+            newY = py + math.sin(pfa) * MOVE_SPEED
+        elseif key == keys.s then
+            newX = px - math.cos(pfa) * MOVE_SPEED
+            newY = py - math.sin(pfa) * MOVE_SPEED
+        elseif key == keys.a then
+            pfa = pfa - ROT_SPEED
+        elseif key == keys.d then
+            pfa = pfa + ROT_SPEED
         end
+
+        if not isWall(newX, py) then px = newX end
+        if not isWall(px, newY) then py = newY end
     end
 end
