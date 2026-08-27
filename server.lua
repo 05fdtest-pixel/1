@@ -8,11 +8,11 @@ modem.open(CHANNEL)
 
 monitor.setTextScale(0.5)
 
--- Инициализация pixelbox_lite
+-- Инициализация холста
 local box = pixelbox.new(monitor)
 local W, H = box.width, box.height
 
--- Цветовая палитра
+-- Палитра
 local SKY_COLOR = colors.cyan
 local FLOOR_COLOR_1 = colors.green
 local FLOOR_COLOR_2 = colors.lime
@@ -20,24 +20,24 @@ local FLOOR_COLOR_2 = colors.lime
 local WALL_LIGHT = colors.lightGray
 local WALL_DARK = colors.gray
 
--- Карта 12x12 (1 - стены, 2 - столбы)
+-- Карта 12x12 (Стены и 4 столба внутри одного цвета)
 local MAP_SIZE = 12
 local map = {
     {1,1,1,1,1,1,1,1,1,1,1,1},
     {1,0,0,0,0,1,1,0,0,0,0,1},
     {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,2,0,0,0,0,2,0,0,1},
+    {1,0,0,1,0,0,0,0,1,0,0,1},
     {1,0,0,0,0,0,0,0,0,0,0,1},
     {1,1,0,0,0,0,0,0,0,0,1,1},
     {1,1,0,0,0,0,0,0,0,0,1,1},
     {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,2,0,0,0,0,2,0,0,1},
+    {1,0,0,1,0,0,0,0,1,0,0,1},
     {1,0,0,0,0,0,0,0,0,0,0,1},
     {1,0,0,0,0,1,1,0,0,0,0,1},
     {1,1,1,1,1,1,1,1,1,1,1,1}
 }
 
--- Игрок
+-- Позиция игрока
 local posX, posY = 2.5, 2.5
 local dirX, dirY = 1.0, 0.0
 
@@ -53,8 +53,8 @@ local keysHeld = { forward = false, back = false, left = false, right = false }
 local function render()
     local halfH = math.floor(H / 2)
     local canvas = box.canvas
-    
-    -- 1. Заливка фона (Небо и Пол)
+
+    -- 1. Небо и пол через прямую запись в массив canvas
     for y = 1, H do
         local row = canvas[y]
         if y <= halfH then
@@ -65,7 +65,7 @@ local function render()
         end
     end
 
-    -- 2. Рендер стен (Raycasting)
+    -- 2. Трассировка лучей
     for x = 1, W do
         local cameraX = 2 * (x - 1) / (W - 1) - 1
         local rayDirX = dirX + planeX * cameraX
@@ -135,7 +135,7 @@ local function render()
 
         local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
 
-        -- Рисуем вертикальный столбец напрямую в буфер холста
+        -- Отрисовка полосы стены напрямую в матрицу canvas
         for y = yMin, yMax do
             canvas[y][x] = wallColor
         end
