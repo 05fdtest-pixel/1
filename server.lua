@@ -15,21 +15,30 @@ local FLOOR_COLOR = colors.green
 local WALL_MAIN = colors.lightGray
 local WALL_SHADE = colors.gray
 
+-- Просторная квадратная карта с широкими коридорами
 local map = {
-    {1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,1,0,0,0,1},
-    {1,0,1,1,0,1,0,1,0,1},
-    {1,0,1,0,0,0,0,1,0,1},
-    {1,0,1,0,1,1,0,1,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1}
+    {1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,1,1,1,1,1,1,0,0,1},
+    {1,0,0,1,0,0,0,0,1,0,0,1},
+    {1,0,0,1,0,0,0,0,1,0,0,1},
+    {1,0,0,1,0,0,0,0,1,0,0,1},
+    {1,0,0,1,1,0,0,1,1,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1}
 }
 
 local posX, posY = 2.5, 2.5
-local dirX, dirY = -1, 0
-local planeX, planeY = 0, 0.66
+local dirX, dirY = 0, 1
 
-local moveSpeed = 3.2
+-- Корректировка угла обзора под пропорции монитора (убирает fish-eye)
+local aspect = W / H
+local fov = 0.66
+local planeX, planeY = -fov * dirY * aspect, fov * dirX * aspect
+
+local moveSpeed = 3.5
 local rotSpeed = 2.5
 local RADIUS = 0.2
 
@@ -109,8 +118,14 @@ local function render()
             if map[mapY] and map[mapY][mapX] and map[mapY][mapX] > 0 then hit = 1 end
         end
 
-        local perpWallDist = (side == 0) and (sideDistX - deltaDistX) or (sideDistY - deltaDistY)
-        if perpWallDist < 0.1 then perpWallDist = 0.1 end
+        local perpWallDist
+        if side == 0 then
+            perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX
+        else
+            perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY
+        end
+
+        if perpWallDist < 0.05 then perpWallDist = 0.05 end
 
         local lineHeight = math.floor(H / perpWallDist)
 
@@ -140,9 +155,9 @@ local function updatePhysics(dt)
         local oldDirX = dirX
         dirX = dirX * math.cos(r) - dirY * math.sin(r)
         dirY = oldDirX * math.sin(r) + dirY * math.cos(r)
-        local oldPlaneX = planeX
-        planeX = planeX * math.cos(r) - planeY * math.sin(r)
-        planeY = oldPlaneX * math.sin(r) + planeY * math.cos(r)
+
+        planeX = -fov * dirY * aspect
+        planeY = fov * dirX * aspect
     end
 
     local dx, dy = 0, 0
