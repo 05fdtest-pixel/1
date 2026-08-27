@@ -1,17 +1,33 @@
 -- Карманный ПК (Беспроводной пульт)
-local modem = peripheral.find("modem")
-if not modem then error("Нужен беспроводной модем!") end
-rednet.open(peripheral.getName(modem))
+local SERVER_ID = 0 -- ЗАМЕНИТЕ 0 НА ID СЕРВЕРА!
 
-local SERVER_ID = 11 -- Замените 0 на ID главного компьютера!
+local modemSide = nil
+for _, side in ipairs(peripheral.getNames()) do
+    if peripheral.getType(side) == "modem" then
+        modemSide = side
+        break
+    end
+end
+
+if not modemSide then
+    error("На карманном ПК нет беспроводного модема!")
+end
+
+rednet.open(modemSide)
 
 term.setBackgroundColor(colors.black)
 term.clear()
+term.setCursorPos(1, 1)
+print("=== ПУЛЬТ УПРАВЛЕНИЯ ===")
+print("Сервер ID: " .. SERVER_ID)
+print("Нажмите W, A, S, D для движения")
+print("Нажмите X для выхода")
 
 while true do
     local event, p1 = os.pullEvent()
     
     if event == "key" then
+        -- Отправляем сигнал на сервер
         rednet.send(SERVER_ID, {type = "key", key = p1})
         
         if p1 == keys.x then
