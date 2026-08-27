@@ -1,7 +1,4 @@
 local pixelbox = require("pixelbox_lite")
-
--- Создаем холст (буфер) для монитора. 
--- По умолчанию можно привязать к стандартному термы или монитору
 local screen = pixelbox.new(term.current())
 
 local modemSide = "right"
@@ -37,15 +34,16 @@ local function isWall(x, y)
 end
 
 local function renderFrame()
-    -- Очищаем буфер pixelbox через метод объекта
-    screen:clear(colors.black)
+    -- Используем стандартную очистку и вывод текста терминала CC:Tweaked
+    term.clear()
     
-    -- Рисуем текст через метод объекта screen
-    screen:drawText(2, 2, "X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py), colors.green)
-    screen:drawText(2, 3, "Angle: " .. string.format("%.2f", pfa), colors.cyan)
+    term.setCursorPos(2, 2)
+    term.setTextColor(colors.green)
+    print("X: " .. string.format("%.2f", px)  .. " Y: " .. string.format("%.2f", py))
     
-    -- Отправляем буфер на экран
-    screen:flush()
+    term.setCursorPos(2, 3)
+    term.setTextColor(colors.cyan)
+    print("Angle: " .. string.format("%.2f", pfa))
 end
 
 while true do
