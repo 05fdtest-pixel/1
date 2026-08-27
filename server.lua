@@ -1,7 +1,3 @@
--- Подключаем Pixelbox Lite
-local pixelbox = require("pixelbox_lite")
-
--- Открываем беспроводной модем справа
 local modemSide = "right"
 if peripheral.getType(modemSide) ~= "modem" and peripheral.getType(modemSide) ~= "wireless_modem" then
     error("Wireless modem not found on the 'right' side of the server!")
@@ -11,7 +7,6 @@ rednet.open(modemSide)
 print("Server started successfully!")
 print("My Server ID: " .. os.getComputerID())
 
--- Простая карта мира: 1 — стена, 0 — проход
 local map = {
     {1,1,1,1,1,1,1,1},
     {1,0,0,0,0,0,0,1},
@@ -23,14 +18,11 @@ local map = {
     {1,1,1,1,1,1,1,1},
 }
 
--- Начальные координаты и угол обзора игрока
 local px, py, pfa = 3.5, 3.5, 0
 
--- УМЕНЬШЕННЫЕ НАСТРОЙКИ СКОРОСТИ (теперь движение плавно-аккуратное)
-local MOVE_SPEED = 0.08   -- Было 0.15 (стало в ~2 раза медленнее)
-local ROT_SPEED = 0.05    -- Было 0.1 (поворот стал плавным, без резких рывков)
+local MOVE_SPEED = 0.08
+local ROT_SPEED = 0.05
 
--- Функция проверки коллизий со стенами
 local function isWall(x, y)
     local mx = math.floor(x) + 1
     local my = math.floor(y) + 1
@@ -38,35 +30,32 @@ local function isWall(x, y)
     return map[my][mx] == 1
 end
 
--- Функция отрисовки кадра
 local function renderFrame()
-    pixelbox.clear(colors.black)
+    term.clear()
     
-    -- Выводим координаты и угол
-    pixelbox.drawText(2, 2, "X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py), colors.yellow)
-    pixelbox.drawText(2, 3, "Angle: " .. string.format("%.2f", pfa), colors.cyan)
+    term.setCursorPos(2, 2)
+    term.setTextColor(colors.yellow)
+    print("X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py))
     
-    pixelbox.flush()
+    term.setCursorPos(2, 3)
+    term.setTextColor(colors.cyan)
+    print("Angle: " .. string.format("%.2f", pfa))
 end
 
--- Основной игровой цикл
 while true do
     renderFrame()
 
-    -- Ждем события с быстрым таймером для стабильного FPS
     local timerId = os.startTimer(0.02)
     local event, p1, p2, p3 = os.pullEvent()
 
     if event == "rednet_message" then
         local senderId, message = p1, p2
-        -- Проверяем, что сообщение пришло от пульта и это событие клавиши
         if type(message) == "table" and message.type == "key" then
             local key = message.key
             
             local newX = px
             local newY = py
             
-            -- Логика управления с уменьшенной скоростью
             if key == keys.w then
                 newX = px + math.cos(pfa) * MOVE_SPEED
                 newY = py + math.sin(pfa) * MOVE_SPEED
@@ -79,7 +68,6 @@ while true do
                 pfa = pfa + ROT_SPEED
             end
             
-            -- Проверяем коллизии раздельно по осям для скольжения вдоль стен
             if not isWall(newX, py) then
                 px = newX
             end
@@ -88,6 +76,6 @@ while true do
             end
         end
     elseif event == "timer" and p1 == timerId then
-        -- Таймер обновления кадра
+        -- таймер кадра
     end
 end
