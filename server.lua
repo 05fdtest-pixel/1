@@ -1,5 +1,6 @@
 local pixelbox = require("pixelbox_lite")
 
+-- Открываем беспроводной модем справа
 local modemSide = "right"
 if peripheral.getType(modemSide) ~= "modem" and peripheral.getType(modemSide) ~= "wireless_modem" then
     error("Wireless modem not found on 'right' side!")
@@ -8,7 +9,7 @@ rednet.open(modemSide)
 
 print("Server started! High FPS mode with collisions.")
 
--- Простая карта мира: 1 — это стена, 0 — пустота (проход)
+-- Простая карта мира: 1 — стена, 0 — проход
 local map = {
     {1,1,1,1,1,1,1,1},
     {1,0,0,0,0,0,0,1},
@@ -24,11 +25,11 @@ local map = {
 local px, py = 3.5, 3.5
 local pfa = 0
 
--- Настройки скорости и коллизий
-local MOVE_SPEED = 0.15   -- Ограничение скорости движения за один шаг
-local ROT_SPEED = 0.1     -- Ограничение скорости поворота камеры
+-- Настройки движения, коллизий и плавности поворотов
+local MOVE_SPEED = 0.15
+local ROT_SPEED = 0.1
 
--- Функция проверки стен (коллизия)
+-- Функция проверки коллизий со стенами
 local function isWall(x, y)
     local mx = math.floor(x) + 1
     local my = math.floor(y) + 1
@@ -36,11 +37,10 @@ local function isWall(x, y)
     return map[my][mx] == 1
 end
 
--- Функция отрисовки кадра (максимально быстро для поднятия FPS)
+-- Функция отрисовки кадра
 local function renderFrame()
-    pixelbox.clear(colors.black)
+    term.clear()
     
-    -- Простой вывод информации (можно заменить на полноценный raycasting)
     pixelbox.drawText(2, 2, "X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py), colors.green)
     pixelbox.drawText(2, 3, "Angle: " .. string.format("%.2f", pfa), colors.cyan)
     
@@ -51,7 +51,7 @@ end
 while true do
     renderFrame()
 
-    -- Небольшой таймер для стабильного и высокого FPS (примерно ~30-50 FPS)
+    -- Стабильный таймер для высокого FPS (~50 кадров/сек)
     local timerId = os.startTimer(0.02)
     local event, p1, p2 = os.pullEvent()
 
@@ -60,7 +60,6 @@ while true do
         if type(message) == "table" and message.type == "key" then
             local key = message.key
             
-            -- Вычисляем новые потенциальные координаты с учетом ограничения скорости движения
             local newX = px
             local newY = py
             
@@ -71,14 +70,12 @@ while true do
                 newX = px - math.cos(pfa) * MOVE_SPEED
                 newY = py - math.sin(pfa) * MOVE_SPEED
             elseif key == keys.a then
-                -- Ограничение скорости поворота налево
                 pfa = pfa - ROT_SPEED
             elseif key == keys.d then
-                -- Ограничение скорости поворота направо
                 pfa = pfa + ROT_SPEED
             end
             
-            -- Проверка коллизий перед перемещением (раздельно по осям для скольжения вдоль стен)
+            -- Проверка коллизий раздельно по осям (для скольжения вдоль стен)
             if not isWall(newX, py) then
                 px = newX
             end
