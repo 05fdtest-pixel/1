@@ -1,0 +1,128 @@
+local function loadPixelbox()
+    if not fs.exists("pixelbox.lua") then
+        shell.run("wget", "https://raw.githubusercontent.com/MCJack123/pixelbox/master/pixelbox.lua", "pixelbox.lua")
+    end
+    return require("pixelbox")
+end
+
+local pixelbox = loadPixelbox()
+
+local monitor = peripheral.find("monitor")
+if not monitor then error() end
+monitor.setTextScale(0.5)
+
+local modem = peripheral.find("modem")
+if not modem then error() end
+modem.open(1235)
+
+local box = pixelbox.new(monitor)
+local SCREEN_W = box.width
+local SCREEN_H = box.height
+
+local C_SKY = colors.lightBlue
+local C_FLOOR = colors.green
+local C_WALL = colors.gray
+local C_BORDER = colors.lightGray
+
+local map = {
+    {1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,1,1,0,1,1,1,0,1},
+    {1,0,1,0,0,0,0,1,0,1},
+    {1,0,1,0,1,1,0,1,0,1},
+    {1,0,0,0,1,1,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1},
+}
+
+local px, py = 2.5, 2.5
+local pDir = 0
+local FOV = math.rad(66)
+
+local MAX_SPEED = 0.08
+local MAX_TURN = 0.05
+
+local function checkCollision(x, y)
+    local mx, my = math.floor(x), math.floor(y)
+    if mx < 1 or mx > #map[1] or my < 1 or my > #map then return true end
+    return map[my][mx] == 1
+end
+
+local function gameLoop()
+    while true do
+        local timer = os.startTimer(0.03)
+
+        while true do
+            local event, p1, p2, p3, message = os.pullEvent()
+            if event == "timer" and p1 == timer then
+                break
+            elseif event == "modem_message" and p2 == 1235 then
+                if message == "FORWARD" then
+                    local nx = px + math.cos(pDir) * 0.2
+                    local ny = py + math.sin(pDir) * 0.2
+                    if not checkCollision(nx, py) then px = nx end
+                    if not checkCollision(px, ny) then py = ny end
+                elseif message == "BACKWARD" then
+                    local nx = px - math.cos(pDir) * 0.2
+                    local ny = py - math.sin(pDir) * 0.2
+                    if not checkCollision(nx, py) then px = nx end
+                    if not checkCollision(px, ny) then py = ny end
+                elseif message == "TURN_LEFT" then
+                    pDir = pDir - 0.15
+                elseif message == "TURN_RIGHT" then
+                    pDir = pDir + 0.15
+                end
+            end
+        end
+
+        box:restore(C_SKY)
+        for y = math.floor(SCREEN_H / 2) + 1, SCREEN_H do
+            for x = 1, SCREEN_W do
+                box.canvas[y][x] = C_FLOOR
+            end
+        end
+
+        for x = 1, SCREEN_W do
+            local cameraX = 2 * x / SCREEN_W - 1
+            local rayAngle = pDir + math.atan(cameraX * math.tan(FOV / 2))
+            
+            local distance = 0
+            local hit = false
+            local shade = C_WALL
+            
+            local sinA = math.sin(rayAngle)
+            local cosA = math.cos(rayAngle)
+            
+            local rx, ry = px, py
+            for i = 1, 30 do
+                rx = rx + cosA * 0.2
+                ry = ry + sinA * 0.2
+                
+                if checkCollision(rx, ry) then
+                    hit = true
+                    distance = i * 0.2 * math.cos(rayAngle - pDir)
+                    if math.abs(rx - math.floor(rx) - 0.5) < 0.1 then
+                        shade = C_BORDER
+                    end
+                    break
+                end
+            end
+
+            if hit and distance > 0 then
+                local wallHeight = math.min(SCREEN_H, math.floor(SCREEN_H / distance))
+                local drawStart = math.max(1, math.floor((SCREEN_H - wallHeight) / 2))
+                local drawEnd = math.min(SCREEN_H, math.floor((SCREEN_H + wallHeight) / 2))
+
+                for y = drawStart, drawEnd do
+                    box.canvas[y][x] = shade
+                end
+            end
+        end
+
+        box:render()
+    end
+end
+
+local ok, err = pcall(gameLoop)
+if not ok then
+    error(err)
+end
