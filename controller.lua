@@ -3,7 +3,7 @@ local modem = peripheral.find("modem")
 if not modem then error("Нужен беспроводной модем!") end
 rednet.open(peripheral.getName(modem))
 
-local SERVER_ID = 0 -- Замените 0 на ID главного компьютера!
+local SERVER_ID = 11 -- Замените 0 на ID главного компьютера!
 
 term.setBackgroundColor(colors.black)
 term.clear()
