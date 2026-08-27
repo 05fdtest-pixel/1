@@ -1,24 +1,20 @@
--- Подключение периферии
-local monitor = peripheral.wrap("left") or error("Подключите монитор СЛЕВА!")
-local modem = peripheral.wrap("right") or error("Подключите Wireless Modem СПРАВА!")
+local monitor = peripheral.wrap("left") or peripheral.wrap("monitor_11")
+local modem = peripheral.wrap("right")
 
 local CHANNEL = 15
 modem.open(CHANNEL)
 
--- Настройка монитора 4x4
-monitor.setTextScale(0.5) -- Мелкий шрифт для максимума деталей
+monitor.setTextScale(0.5)
 monitor.clear()
 
 local MW, MH = monitor.getSize()
-local W, H = MW, MH * 2 -- Pixelbox: 1 символ по вертикали = 2 пикселя
+local W, H = MW, MH * 2
 
--- Цветовая палитра
 local SKY_COLOR = colors.cyan
 local FLOOR_COLOR = colors.green
 local WALL_MAIN = colors.lightGray
 local WALL_SHADE = colors.gray
 
--- Карта 10x10 (1 - стена, 0 - пусто)
 local map = {
     {1,1,1,1,1,1,1,1,1,1},
     {1,0,0,0,0,1,0,0,0,1},
@@ -29,18 +25,16 @@ local map = {
     {1,1,1,1,1,1,1,1,1,1}
 }
 
--- Игрок и физика
 local posX, posY = 2.5, 2.5
 local dirX, dirY = -1, 0
 local planeX, planeY = 0, 0.66
 
-local moveSpeed = 3.0  -- Ограничение скорости хода
-local rotSpeed = 2.2   -- Ограничение скорости поворота
-local RADIUS = 0.25    -- Радиус коллизии со стенами
+local moveSpeed = 3.0
+local rotSpeed = 2.2
+local RADIUS = 0.25
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
--- Буфер Pixelbox
 local topColors, botColors = {}, {}
 for y = 1, MH do
     topColors[y], botColors[y] = {}, {}
@@ -70,15 +64,12 @@ local function drawPixelbox()
     end
 end
 
--- Рендеринг сцены
 local function render()
-    -- Отрисовка Неба и Пола
     for x = 1, W do
         for y = 1, H / 2 do setPixel(x, y, SKY_COLOR) end
         for y = H / 2 + 1, H do setPixel(x, y, FLOOR_COLOR) end
     end
 
-    -- Рейкастинг стен
     for x = 1, W do
         local cameraX = 2 * x / W - 1
         local rayDirX = dirX + planeX * cameraX
@@ -123,7 +114,6 @@ local function render()
         local drawStart = math.max(1, math.floor(-lineHeight / 2 + H / 2))
         local drawEnd = math.min(H, math.floor(lineHeight / 2 + H / 2))
 
-        -- Теневой цвет для боковых граней стен (темно-серый)
         local color = (side == 1) and WALL_SHADE or WALL_MAIN
         for y = drawStart, drawEnd do
             setPixel(x, y, color)
@@ -133,12 +123,10 @@ local function render()
     drawPixelbox()
 end
 
--- Физика с ограничением скорости и коллизиями
 local function updatePhysics(dt)
     local moveStep = moveSpeed * dt
     local rotStep = rotSpeed * dt
 
-    -- Вращение
     local r = 0
     if keysHeld.right then r = r - rotStep end
     if keysHeld.left then r = r + rotStep end
@@ -151,12 +139,10 @@ local function updatePhysics(dt)
         planeY = oldPlaneX * math.sin(r) + planeY * math.cos(r)
     end
 
-    -- Движение
     local dx, dy = 0, 0
     if keysHeld.forward then dx = dx + dirX * moveStep; dy = dy + dirY * moveStep end
     if keysHeld.back then dx = dx - dirX * moveStep; dy = dy - dirY * moveStep end
 
-    -- Проверка столкновений
     if dx ~= 0 then
         local newX = posX + dx
         local checkX = dx > 0 and (newX + RADIUS) or (newX - RADIUS)
@@ -169,17 +155,15 @@ local function updatePhysics(dt)
     end
 end
 
--- Главный игровой цикл
 local lastTime = os.clock()
 while true do
     local now = os.clock()
-    local dt = math.min(now - lastTime, 0.1) -- Защита от резких скачков dt
+    local dt = math.min(now - lastTime, 0.1)
     lastTime = now
 
     updatePhysics(dt)
     render()
 
-    -- Обработка сетевых команд без задержек
     local timerId = os.startTimer(0.001)
     while true do
         local event, p1, p2, p3, p4 = os.pullEvent()
