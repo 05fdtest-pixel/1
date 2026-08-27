@@ -7,58 +7,60 @@ modem.open(CHANNEL)
 monitor.setTextScale(0.5)
 monitor.clear()
 
-local MW, MH = monitor.getSize()
-local W = MW
-local H = MH * 2
+local termW, termH = monitor.getSize()
+local W = termW
+local H = termH * 2
 
 local SKY_COLOR = colors.cyan
 local FLOOR_COLOR = colors.green
-local WALL_MAIN = colors.lightGray
-local WALL_SHADE = colors.gray
+local WALL_LIGHT = colors.lightGray
+local WALL_DARK = colors.gray
 
--- Карта с БОЛЬШИМИ квадратными комнатами и широкими туннелями
+-- Огромная квадратная комната 8x8 без узких проходов
 local map = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,1,1,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,1,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,1,0,0,0,0,0,1},
-    {1,0,0,0,0,0,1,1,0,0,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+    {1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1}
 }
 
--- Старт игрока в центре квадратного зала
-local posX, posY = 3.5, 3.5
-local dirAngle = 0 -- Угол поворота (в радианах)
+-- Игрок стоит в центре широкой комнаты
+local posX, posY = 5.0, 5.0
+local dirX, dirY = -1.0, 0.0
+local planeX, planeY = 0.0, 0.66
 
-local moveSpeed = 3.5
-local rotSpeed = 2.5
+local moveSpeed = 4.0
+local rotSpeed = 3.0
 local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
--- Буферы строк цвета (верхняя и нижняя половина символа)
-local topRow, botRow = {}, {}
-for y = 1, MH do
-    topRow[y] = {}
-    botRow[y] = {}
+local topBuf, botBuf = {}, {}
+for y = 1, termH do
+    topBuf[y] = {}
+    botBuf[y] = {}
 end
 
-local function setPixel(x, y, color)
+local function setPixel(x, y, col)
     if x < 1 or x > W or y < 1 or y > H then return end
-    local my = math.floor((y - 1) / 2) + 1
-    if y % 2 == 1 then
-        topRow[my][x] = color
+    local cellY = math.floor((y - 1) / 2) + 1
+    if (y - 1) % 2 == 0 then
+        topBuf[cellY][x] = col
     else
-        botRow[my][x] = color
+        botBuf[cellY][x] = col
     end
 end
 
-local function drawPixelbox()
-    for y = 1, MH do
+local function flushScreen()
+    for y = 1, termH do
         monitor.setCursorPos(1, y)
-        local tR, bR = topRow[y], botRow[y]
+        local tR, bR = topBuf[y], botBuf[y]
         local tStr, bStr = {}, {}
         for x = 1, W do
             tStr[x] = colors.toBlit(tR[x])
@@ -69,25 +71,21 @@ local function drawPixelbox()
 end
 
 local function render()
-    -- Очистка фона
+    -- Базовая заливка неба и пола
+    local halfH = math.floor(H / 2)
     for x = 1, W do
-        for y = 1, MH do
-            topRow[y][x] = SKY_COLOR
-            botRow[y][x] = FLOOR_COLOR
+        for y = 1, halfH do
+            setPixel(x, y, SKY_COLOR)
+        end
+        for y = halfH + 1, H do
+            setPixel(x, y, FLOOR_COLOR)
         end
     end
 
-    -- Вектор направления взгляда
-    local dirX = math.cos(dirAngle)
-    local dirY = math.sin(dirAngle)
-
-    -- Вектор плоскости экрана (FOV ~ 66 градусов)
-    local fov = 0.66
-    local planeX = -dirY * fov
-    local planeY = dirX * fov
+    -- МАСШТАБНЫЙ МНОЖИТЕЛЬ: компенсирует сплющивание на мониторе CC
+    local DISPLAY_SCALE = 1.6
 
     for x = 1, W do
-        -- Отклонение луча от центра экрана (-1..1)
         local cameraX = 2 * (x - 1) / W - 1
         local rayDirX = dirX + planeX * cameraX
         local rayDirY = dirY + planeY * cameraX
@@ -117,7 +115,8 @@ local function render()
             sideDistY = (mapY + 1.0 - posY) * deltaDistY
         end
 
-        local hit, side = 0, 0
+        local hit = 0
+        local side = 0
         while hit == 0 do
             if sideDistX < sideDistY then
                 sideDistX = sideDistX + deltaDistX
@@ -133,7 +132,7 @@ local function render()
             end
         end
 
-        -- ВАЖНО: Точная перпендикулярная дистанция убирает рыбий глаз
+        -- Вычисление честной перпендикулярной дистанции (убирает эффекты линзы)
         local perpWallDist
         if side == 0 then
             perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX
@@ -141,10 +140,10 @@ local function render()
             perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY
         end
 
-        if perpWallDist < 0.01 then perpWallDist = 0.01 end
+        if perpWallDist < 0.1 then perpWallDist = 0.1 end
 
-        -- Пропорция высоты: 1.0 для абсолютного квадрата
-        local lineHeight = math.floor(H / perpWallDist)
+        -- Правильная вертикальная проекция
+        local lineHeight = math.floor((H / perpWallDist) * DISPLAY_SCALE)
 
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
@@ -152,24 +151,32 @@ local function render()
         local yMin = math.max(1, drawStart)
         local yMax = math.min(H, drawEnd)
 
-        local wallColor = (side == 1) and WALL_SHADE or WALL_MAIN
+        local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
         for y = yMin, yMax do
             setPixel(x, y, wallColor)
         end
     end
 
-    drawPixelbox()
+    flushScreen()
 end
 
 local function update(dt)
     local moveStep = moveSpeed * dt
     local rotStep = rotSpeed * dt
 
-    if keysHeld.right then dirAngle = dirAngle + rotStep end
-    if keysHeld.left then dirAngle = dirAngle - rotStep end
+    local rot = 0
+    if keysHeld.right then rot = rot - rotStep end
+    if keysHeld.left then rot = rot + rotStep end
 
-    local dirX = math.cos(dirAngle)
-    local dirY = math.sin(dirAngle)
+    if rot ~= 0 then
+        local oldDirX = dirX
+        dirX = dirX * math.cos(rot) - dirY * math.sin(rot)
+        dirY = oldDirX * math.sin(rot) + dirY * math.cos(rot)
+
+        local oldPlaneX = planeX
+        planeX = planeX * math.cos(rot) - planeY * math.sin(rot)
+        planeY = oldPlaneX * math.sin(rot) + planeY * math.cos(rot)
+    end
 
     local dx, dy = 0, 0
     if keysHeld.forward then dx = dx + dirX * moveStep; dy = dy + dirY * moveStep end
