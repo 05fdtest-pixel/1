@@ -1,6 +1,5 @@
 local pixelbox = require("pixelbox_lite")
 
--- Открываем беспроводной модем справа
 local modemSide = "right"
 if peripheral.getType(modemSide) ~= "modem" and peripheral.getType(modemSide) ~= "wireless_modem" then
     error("Wireless modem not found on 'right' side!")
@@ -9,7 +8,6 @@ rednet.open(modemSide)
 
 print("Server started! High FPS mode with collisions.")
 
--- Простая карта мира: 1 — стена, 0 — проход
 local map = {
     {1,1,1,1,1,1,1,1},
     {1,0,0,0,0,0,0,1},
@@ -21,15 +19,12 @@ local map = {
     {1,1,1,1,1,1,1,1},
 }
 
--- Координаты игрока и угол обзора
 local px, py = 3.5, 3.5
 local pfa = 0
 
--- Настройки движения, коллизий и плавности поворотов
 local MOVE_SPEED = 0.15
 local ROT_SPEED = 0.1
 
--- Функция проверки коллизий со стенами
 local function isWall(x, y)
     local mx = math.floor(x) + 1
     local my = math.floor(y) + 1
@@ -37,7 +32,6 @@ local function isWall(x, y)
     return map[my][mx] == 1
 end
 
--- Функция отрисовки кадра
 local function renderFrame()
     term.clear()
     
@@ -47,11 +41,9 @@ local function renderFrame()
     pixelbox.flush()
 end
 
--- Основной игровой цикл
 while true do
     renderFrame()
 
-    -- Стабильный таймер для высокого FPS (~50 кадров/сек)
     local timerId = os.startTimer(0.02)
     local event, p1, p2 = os.pullEvent()
 
@@ -75,7 +67,6 @@ while true do
                 pfa = pfa + ROT_SPEED
             end
             
-            -- Проверка коллизий раздельно по осям (для скольжения вдоль стен)
             if not isWall(newX, py) then
                 px = newX
             end
