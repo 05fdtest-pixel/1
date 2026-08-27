@@ -1,6 +1,3 @@
-local pixelbox = require("pixelbox_lite")
-local screen = pixelbox.new(term.current())
-
 local modemSide = "right"
 if peripheral.getType(modemSide) ~= "modem" and peripheral.getType(modemSide) ~= "wireless_modem" then
     error("Wireless modem not found on 'right' side!")
@@ -34,12 +31,11 @@ local function isWall(x, y)
 end
 
 local function renderFrame()
-    -- Используем стандартную очистку и вывод текста терминала CC:Tweaked
     term.clear()
     
     term.setCursorPos(2, 2)
     term.setTextColor(colors.green)
-    print("X: " .. string.format("%.2f", px)  .. " Y: " .. string.format("%.2f", py))
+    print("X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py))
     
     term.setCursorPos(2, 3)
     term.setTextColor(colors.cyan)
