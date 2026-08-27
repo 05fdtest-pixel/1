@@ -7,126 +7,87 @@ modem.open(CHANNEL)
 monitor.setTextScale(0.5)
 monitor.clear()
 
-local termW, termH = monitor.getSize()
--- Максимальное разрешение: 2 пикселя по горизонтали, 3 по вертикали на символ
-local W = termW * 2
-local H = termH * 3
+local MW, MH = monitor.getSize()
+local W = MW
+local H = MH * 2
 
 local SKY_COLOR = colors.cyan
 local FLOOR_COLOR = colors.green
-local WALL_LIGHT = colors.lightGray
-local WALL_DARK = colors.gray
+local WALL_MAIN = colors.lightGray
+local WALL_SHADE = colors.gray
 
--- Просторная карта с широкими туннелями
+-- Карта с БОЛЬШИМИ квадратными комнатами и широкими туннелями
 local map = {
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,1,1,1,1,0,0,1,1,1,1,0,0,1},
-    {1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1},
-    {1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1},
-    {1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1},
-    {1,0,0,1,1,1,1,0,0,1,1,1,1,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,0,0,1,1,0,0,0,0,0,1},
+    {1,0,0,0,0,0,1,1,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,1,1,0,0,0,0,0,1},
+    {1,0,0,0,0,0,1,1,0,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1}
 }
 
-local posX, posY = 2.5, 2.5
-local dirX, dirY = -1, 0
--- Исправленный FOV (угол обзора ~66 градусов)
-local planeX, planeY = 0, 0.66
+-- Старт игрока в центре квадратного зала
+local posX, posY = 3.5, 3.5
+local dirAngle = 0 -- Угол поворота (в радианах)
 
-local moveSpeed = 4.0
-local rotSpeed = 3.0
+local moveSpeed = 3.5
+local rotSpeed = 2.5
 local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
--- Буфер пикселей (W x H)
-local pixelBuf = {}
-for y = 1, H do
-    pixelBuf[y] = {}
+-- Буферы строк цвета (верхняя и нижняя половина символа)
+local topRow, botRow = {}, {}
+for y = 1, MH do
+    topRow[y] = {}
+    botRow[y] = {}
 end
 
-local function clearBuffer()
-    for y = 1, math.floor(H / 2) do
-        local row = pixelBuf[y]
-        for x = 1, W do row[x] = SKY_COLOR end
-    end
-    for y = math.floor(H / 2) + 1, H do
-        local row = pixelBuf[y]
-        for x = 1, W do row[x] = FLOOR_COLOR end
+local function setPixel(x, y, color)
+    if x < 1 or x > W or y < 1 or y > H then return end
+    local my = math.floor((y - 1) / 2) + 1
+    if y % 2 == 1 then
+        topRow[my][x] = color
+    else
+        botRow[my][x] = color
     end
 end
 
--- Отрисовка 2x3 пикселей на символ
-local function drawBuffer()
-    for ty = 1, termH do
-        monitor.setCursorPos(1, ty)
-        local y1 = (ty - 1) * 3 + 1
-        local y2 = y1 + 1
-        local y3 = y1 + 2
-
-        local charRow, fgRow, bgRow = {}, {}, {}
-
-        for tx = 1, termW do
-            local x1 = (tx - 1) * 2 + 1
-            local x2 = x1 + 1
-
-            -- Считываем 6 sub-пикселей
-            local c1 = pixelBuf[y1][x1]
-            local c2 = pixelBuf[y1][x2]
-            local c3 = pixelBuf[y2][x1]
-            local c4 = pixelBuf[y2][x2]
-            local c5 = pixelBuf[y3][x1]
-            local c6 = pixelBuf[y3][x2]
-
-            -- Преобладающий цвет заднего фона
-            local bg = c1
-            local fg = c1
-            if c2 ~= bg then fg = c2
-            elseif c3 ~= bg then fg = c3
-            elseif c4 ~= bg then fg = c4
-            elseif c5 ~= bg then fg = c5
-            elseif c6 ~= bg then fg = c6 end
-
-            -- Формирование маски символа 2x3
-            local mask = 0
-            if c1 == fg then mask = mask + 1 end
-            if c2 == fg then mask = mask + 2 end
-            if c3 == fg then mask = mask + 4 end
-            if c4 == fg then mask = mask + 8 end
-            if c5 == fg then mask = mask + 16 end
-            if c6 == fg then mask = mask + 32 end
-
-            local ch = " "
-            if mask == 63 then
-                ch = "\157"
-            elseif mask > 0 then
-                ch = string.char(128 + mask)
-            end
-
-            charRow[tx] = ch
-            fgRow[tx] = colors.toBlit(fg)
-            bgRow[tx] = colors.toBlit(bg)
+local function drawPixelbox()
+    for y = 1, MH do
+        monitor.setCursorPos(1, y)
+        local tR, bR = topRow[y], botRow[y]
+        local tStr, bStr = {}, {}
+        for x = 1, W do
+            tStr[x] = colors.toBlit(tR[x])
+            bStr[x] = colors.toBlit(bR[x])
         end
-
-        monitor.blit(table.concat(charRow), table.concat(fgRow), table.concat(bgRow))
+        monitor.blit(string.rep("\157", W), table.concat(tStr), table.concat(bStr))
     end
 end
 
 local function render()
-    clearBuffer()
+    -- Очистка фона
+    for x = 1, W do
+        for y = 1, MH do
+            topRow[y][x] = SKY_COLOR
+            botRow[y][x] = FLOOR_COLOR
+        end
+    end
 
-    -- Точный физический аспект пикселей Minecraft
-    local aspectCorrection = (W / H) * 0.75
+    -- Вектор направления взгляда
+    local dirX = math.cos(dirAngle)
+    local dirY = math.sin(dirAngle)
+
+    -- Вектор плоскости экрана (FOV ~ 66 градусов)
+    local fov = 0.66
+    local planeX = -dirY * fov
+    local planeY = dirX * fov
 
     for x = 1, W do
+        -- Отклонение луча от центра экрана (-1..1)
         local cameraX = 2 * (x - 1) / W - 1
         local rayDirX = dirX + planeX * cameraX
         local rayDirY = dirY + planeY * cameraX
@@ -156,8 +117,7 @@ local function render()
             sideDistY = (mapY + 1.0 - posY) * deltaDistY
         end
 
-        local hit = 0
-        local side = 0
+        local hit, side = 0, 0
         while hit == 0 do
             if sideDistX < sideDistY then
                 sideDistX = sideDistX + deltaDistX
@@ -173,7 +133,7 @@ local function render()
             end
         end
 
-        -- Вычисление перпендикулярного расстояния без трапецеидальных искажений
+        -- ВАЖНО: Точная перпендикулярная дистанция убирает рыбий глаз
         local perpWallDist
         if side == 0 then
             perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX
@@ -181,9 +141,10 @@ local function render()
             perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY
         end
 
-        if perpWallDist < 0.05 then perpWallDist = 0.05 end
+        if perpWallDist < 0.01 then perpWallDist = 0.01 end
 
-        local lineHeight = math.floor((H / perpWallDist) * aspectCorrection)
+        -- Пропорция высоты: 1.0 для абсолютного квадрата
+        local lineHeight = math.floor(H / perpWallDist)
 
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
@@ -191,32 +152,24 @@ local function render()
         local yMin = math.max(1, drawStart)
         local yMax = math.min(H, drawEnd)
 
-        local col = (side == 1) and WALL_DARK or WALL_LIGHT
+        local wallColor = (side == 1) and WALL_SHADE or WALL_MAIN
         for y = yMin, yMax do
-            pixelBuf[y][x] = col
+            setPixel(x, y, wallColor)
         end
     end
 
-    drawBuffer()
+    drawPixelbox()
 end
 
 local function update(dt)
     local moveStep = moveSpeed * dt
     local rotStep = rotSpeed * dt
 
-    local rot = 0
-    if keysHeld.right then rot = rot - rotStep end
-    if keysHeld.left then rot = rot + rotStep end
+    if keysHeld.right then dirAngle = dirAngle + rotStep end
+    if keysHeld.left then dirAngle = dirAngle - rotStep end
 
-    if rot ~= 0 then
-        local oldDirX = dirX
-        dirX = dirX * math.cos(rot) - dirY * math.sin(rot)
-        dirY = oldDirX * math.sin(rot) + dirY * math.cos(rot)
-
-        local oldPlaneX = planeX
-        planeX = planeX * math.cos(rot) - planeY * math.sin(rot)
-        planeY = oldPlaneX * math.sin(rot) + planeY * math.cos(rot)
-    end
+    local dirX = math.cos(dirAngle)
+    local dirY = math.sin(dirAngle)
 
     local dx, dy = 0, 0
     if keysHeld.forward then dx = dx + dirX * moveStep; dy = dy + dirY * moveStep end
