@@ -1,3 +1,5 @@
+local pixelbox = require("pixelbox")
+
 local monitor = peripheral.wrap("left") or peripheral.wrap("monitor_11")
 local modem = peripheral.wrap("right")
 
@@ -5,17 +7,18 @@ local CHANNEL = 15
 modem.open(CHANNEL)
 
 monitor.setTextScale(0.5)
-monitor.clear()
 
-local W, H = monitor.getSize()
+-- Инициализируем холст PixelBox на мониторе
+local box = pixelbox.new(monitor)
+local W, H = box.width, box.height
 
 -- Цвета
-local SKY_COLOR = colors.toBlit(colors.cyan)
-local FLOOR_COLOR = colors.toBlit(colors.green)
-local WALL_LIGHT = colors.toBlit(colors.lightGray)
-local WALL_DARK = colors.toBlit(colors.gray)
+local SKY_COLOR = colors.cyan
+local FLOOR_COLOR = colors.green
+local WALL_LIGHT = colors.lightGray
+local WALL_DARK = colors.gray
 
--- Карта 10x10, полностью замкнутая со всех сторон
+-- Замкнутая карта 10x10
 local MAP_SIZE = 10
 local map = {
     {1,1,1,1,1,1,1,1,1,1},
@@ -34,9 +37,9 @@ local map = {
 local posX, posY = 5.5, 5.5
 local dirX, dirY = -1.0, 0.0
 
--- Корректировка угла обзора под пиксели монитора CC ( Aspect Ratio ~ 0.45 )
+-- Коррекция FOV с учетом физических пропорций высокого разрешения PixelBox
 local FOV = 0.66
-local planeX, planeY = 0.0, FOV * (H / W) * 0.45
+local planeX, planeY = 0.0, FOV * (H / W) * 0.85
 
 local moveSpeed = 3.0
 local rotSpeed = 2.0
@@ -45,18 +48,13 @@ local RADIUS = 0.2
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
 local function render()
-    -- Рендерим капотные столбцы прямо в текстовые буферы строк экрана
-    local screenFG = {}
-    local screenBG = {}
-    
+    -- 1. Заливка неба и пола в буфер PixelBox
     local halfH = math.floor(H / 2)
-    for y = 1, H do
-        screenFG[y] = {}
-        screenBG[y] = {}
-    end
+    box:box(1, 1, W, halfH, SKY_COLOR)
+    box:box(1, halfH + 1, W, H, FLOOR_COLOR)
 
+    -- 2. Трассировка лучей для каждого пиксельного столбца
     for x = 1, W do
-        -- Нормализованная координата X на экране [-1; 1]
         local cameraX = 2 * (x - 1) / (W - 1) - 1
         local rayDirX = dirX + planeX * cameraX
         local rayDirY = dirY + planeY * cameraX
@@ -89,7 +87,6 @@ local function render()
         local hit = 0
         local side = 0
 
-        -- Цикл трассировки луча
         while hit == 0 do
             if sideDistX < sideDistY then
                 sideDistX = sideDistX + deltaDistX
@@ -101,7 +98,6 @@ local function render()
                 side = 1
             end
 
-            -- Проверка на границы карты во избежание вылетов и дыр
             if mapX < 1 or mapX > MAP_SIZE or mapY < 1 or mapY > MAP_SIZE then
                 hit = 1
             elseif map[mapY][mapX] > 0 then
@@ -109,7 +105,6 @@ local function render()
             end
         end
 
-        -- Перпендикулярная дистанция до стены (убирает эффекты рыбьего глаза)
         local perpWallDist
         if side == 0 then
             perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX
@@ -119,7 +114,7 @@ local function render()
 
         if perpWallDist < 0.01 then perpWallDist = 0.01 end
 
-        -- Расчет высоты стены
+        -- Расчет корректной высоты стены для субпиксельной сетки
         local lineHeight = math.floor(H / perpWallDist)
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
@@ -129,25 +124,12 @@ local function render()
 
         local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
 
-        -- Заполнение столбца x
-        for y = 1, H do
-            if y < yMin then
-                screenBG[y][x] = SKY_COLOR
-            elseif y > yMax then
-                screenBG[y][x] = FLOOR_COLOR
-            else
-                screenBG[y][x] = wallColor
-            end
-            screenFG[y][x] = "0" -- Заглушка цвета текста
-        end
+        -- Отрисовка линии стены в субпиксельный буфер
+        box:line(x, yMin, x, yMax, wallColor)
     end
 
-    -- Отрисовка готового кадра на монитор без лагов
-    local emptyText = string.rep(" ", W)
-    for y = 1, H do
-        monitor.setCursorPos(1, y)
-        monitor.blit(emptyText, table.concat(screenFG[y]), table.concat(screenBG[y]))
-    end
+    -- Мгновенная отрисовка буфера без миганий
+    box:render()
 end
 
 local function update(dt)
