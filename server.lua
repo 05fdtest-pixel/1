@@ -8,52 +8,61 @@ modem.open(CHANNEL)
 
 monitor.setTextScale(0.5)
 
--- Инициализируем холст PixelBox на мониторе
 local box = pixelbox.new(monitor)
 local W, H = box.width, box.height
 
--- Цвета
+-- Цветовая палитра
 local SKY_COLOR = colors.cyan
-local FLOOR_COLOR = colors.green
+local FLOOR_COLOR_1 = colors.green
+local FLOOR_COLOR_2 = colors.lime
+
+-- Серые стены и столбы одного цвета
 local WALL_LIGHT = colors.lightGray
 local WALL_DARK = colors.gray
 
--- Замкнутая карта 10x10
-local MAP_SIZE = 10
+-- Карта 12x12 (1 - стены, 2 - столбы)
+local MAP_SIZE = 12
 local map = {
-    {1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1}
+    {1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,0,1,1,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,2,0,0,0,0,2,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,1,0,0,0,0,0,0,0,0,1,1},
+    {1,1,0,0,0,0,0,0,0,0,1,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,2,0,0,0,0,2,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,1,1,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1}
 }
 
 -- Игрок
-local posX, posY = 5.5, 5.5
-local dirX, dirY = -1.0, 0.0
+local posX, posY = 2.5, 2.5
+local dirX, dirY = 1.0, 0.0
 
--- Коррекция FOV с учетом физических пропорций высокого разрешения PixelBox
 local FOV = 0.66
 local planeX, planeY = 0.0, FOV * (H / W) * 0.85
 
 local moveSpeed = 3.0
 local rotSpeed = 2.0
-local RADIUS = 0.2
+local RADIUS = 0.25
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
 local function render()
-    -- 1. Заливка неба и пола в буфер PixelBox
     local halfH = math.floor(H / 2)
+    
+    -- 1. Небо
     box:box(1, 1, W, halfH, SKY_COLOR)
-    box:box(1, halfH + 1, W, H, FLOOR_COLOR)
+    
+    -- 2. Пол с сеткой для объема
+    for y = halfH + 1, H do
+        local col = (y % 2 == 0) and FLOOR_COLOR_1 or FLOOR_COLOR_2
+        box:line(1, y, W, y, col)
+    end
 
-    -- 2. Трассировка лучей для каждого пиксельного столбца
+    -- 3. Лучи
     for x = 1, W do
         local cameraX = 2 * (x - 1) / (W - 1) - 1
         local rayDirX = dirX + planeX * cameraX
@@ -114,7 +123,6 @@ local function render()
 
         if perpWallDist < 0.01 then perpWallDist = 0.01 end
 
-        -- Расчет корректной высоты стены для субпиксельной сетки
         local lineHeight = math.floor(H / perpWallDist)
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
@@ -122,13 +130,12 @@ local function render()
         local yMin = math.max(1, drawStart)
         local yMax = math.min(H, drawEnd)
 
+        -- И стены, и столбы выкрашены в единый серый цвет
         local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
 
-        -- Отрисовка линии стены в субпиксельный буфер
         box:line(x, yMin, x, yMax, wallColor)
     end
 
-    -- Мгновенная отрисовка буфера без миганий
     box:render()
 end
 
