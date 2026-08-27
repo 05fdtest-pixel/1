@@ -7,31 +7,28 @@ modem.open(CHANNEL)
 monitor.setTextScale(0.5)
 monitor.clear()
 
-local MW, MH = monitor.getSize()
-local W = MW
-local H = MH * 2
+local W, H = monitor.getSize()
 
+-- Цвета
 local SKY_COLOR = colors.cyan
 local FLOOR_COLOR = colors.green
-local WALL_LIGHT = colors.lightGray
-local WALL_DARK = colors.gray
+local WALL_MAIN = colors.lightGray
+local WALL_SHADE = colors.gray
 
--- Карта: Просторный квадратный холл со стенками по периметру
+-- Простая комната 6x6 (широкая, без мелких туннелей)
 local map = {
-    {1,1,1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1,1,1}
+    {1,1,1,1,1,1,1,1},
+    {1,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1}
 }
 
--- Игрок в центре комнаты
-local posX, posY = 6.0, 5.0
+-- Игрок ровно в центре
+local posX, posY = 4.5, 4.5
 local dirX, dirY = -1.0, 0.0
 local planeX, planeY = 0.0, 0.66
 
@@ -41,48 +38,14 @@ local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
--- Буфер пикселей
-local topBuf, botBuf = {}, {}
-for y = 1, MH do
-    topBuf[y] = {}
-    botBuf[y] = {}
-end
-
-local function setPixel(x, y, col)
-    if x < 1 or x > W or y < 1 or y > H then return end
-    local cellY = math.floor((y - 1) / 2) + 1
-    if (y - 1) % 2 == 0 then
-        topBuf[cellY][x] = col
-    else
-        botBuf[cellY][x] = col
-    end
-end
-
-local function flushScreen()
-    for y = 1, MH do
-        monitor.setCursorPos(1, y)
-        local tR, bR = topBuf[y], botBuf[y]
-        local tStr, bStr = {}, {}
-        for x = 1, W do
-            tStr[x] = colors.toBlit(tR[x])
-            bStr[x] = colors.toBlit(bR[x])
-        end
-        monitor.blit(string.rep("\157", W), table.concat(tStr), table.concat(bStr))
-    end
-end
-
 local function render()
-    -- Небо и пол
-    local halfH = math.floor(H / 2)
-    for x = 1, W do
-        for y = 1, halfH do
-            setPixel(x, y, SKY_COLOR)
-        end
-        for y = halfH + 1, H do
-            setPixel(x, y, FLOOR_COLOR)
-        end
-    end
+    -- 1. Рисуем чистое Голубое Небо (верхняя половина)
+    paintutils.drawFilledBox(1, 1, W, math.floor(H / 2), SKY_COLOR)
+    
+    -- 2. Рисуем чистый Зеленый Пол (нижняя половина)
+    paintutils.drawFilledBox(1, math.floor(H / 2) + 1, W, H, FLOOR_COLOR)
 
+    -- 3. Рендерим Стены по столбцам
     for x = 1, W do
         local cameraX = 2 * (x - 1) / W - 1
         local rayDirX = dirX + planeX * cameraX
@@ -137,9 +100,9 @@ local function render()
             perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY
         end
 
-        if perpWallDist < 0.01 then perpWallDist = 0.01 end
+        if perpWallDist < 0.1 then perpWallDist = 0.1 end
 
-        -- Нормальная высота стены без искажений пропорций
+        -- Высота стены
         local lineHeight = math.floor(H / perpWallDist)
 
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
@@ -148,13 +111,12 @@ local function render()
         local yMin = math.max(1, drawStart)
         local yMax = math.min(H, drawEnd)
 
-        local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
-        for y = yMin, yMax do
-            setPixel(x, y, wallColor)
-        end
+        -- Цвет стены (светлый/тёмный для граней)
+        local wallColor = (side == 1) and WALL_SHADE or WALL_MAIN
+        
+        -- Отрисовка вертикальной линии стены
+        paintutils.drawLine(x, yMin, x, yMax, wallColor)
     end
-
-    flushScreen()
 end
 
 local function update(dt)
