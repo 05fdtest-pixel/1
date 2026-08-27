@@ -4,12 +4,11 @@ local modem = peripheral.wrap("right")
 local CHANNEL = 15
 modem.open(CHANNEL)
 
--- Настраиваем монитор для работы с paintutils
-term.redirect(monitor)
 monitor.setTextScale(0.5)
-monitor.clear()
-
 local W, H = monitor.getSize()
+
+-- Создаем буферный экран для предотвращения мерцания
+local win = window.create(monitor, 1, 1, W, H, false)
 
 -- Цвета
 local SKY_COLOR = colors.cyan
@@ -40,14 +39,34 @@ local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
-local function render()
-    -- 1. Небо (голубой верх)
-    paintutils.drawFilledBox(1, 1, W, math.floor(H / 2), SKY_COLOR)
+local function drawVerticalLine(x, y1, y2, color)
+    if y1 > y2 then y1, y2 = y2, y1 end
+    if y1 < 1 then y1 = 1 end
+    if y2 > H then y2 = H end
     
-    -- 2. Пол (зеленый низ)
-    paintutils.drawFilledBox(1, math.floor(H / 2) + 1, W, H, FLOOR_COLOR)
+    local c = colors.toBlit(color)
+    local charStr = string.rep(" ", 1)
+    local bgStr = string.rep(c, 1)
+    
+    for y = y1, y2 do
+        win.setCursorPos(x, y)
+        win.blit(" ", "0", c)
+    end
+end
 
-    -- 3. Рендер стен
+local function render()
+    -- 1. Очистка небом и полом
+    win.setBackgroundColor(SKY_COLOR)
+    win.clear()
+    
+    local halfH = math.floor(H / 2)
+    win.setBackgroundColor(FLOOR_COLOR)
+    for y = halfH + 1, H do
+        win.setCursorPos(1, y)
+        win.clearLine()
+    end
+
+    -- 2. Рендер стен
     for x = 1, W do
         local cameraX = 2 * (x - 1) / W - 1
         local rayDirX = dirX + planeX * cameraX
@@ -113,8 +132,12 @@ local function render()
         local yMax = math.min(H, drawEnd)
 
         local col = (side == 1) and WALL_SHADE or WALL_MAIN
-        paintutils.drawLine(x, yMin, x, yMax, col)
+        drawVerticalLine(x, yMin, yMax, col)
     end
+
+    -- Выводим готовый кадр из буфера на монитор
+    win.setVisible(true)
+    win.setVisible(false)
 end
 
 local function update(dt)
