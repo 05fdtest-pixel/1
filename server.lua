@@ -19,7 +19,6 @@ local map = {
 }
 
 local px, py, pfa = 3.5, 3.5, 0
-
 local MOVE_SPEED = 0.08
 local ROT_SPEED = 0.05
 
@@ -32,7 +31,6 @@ end
 
 local function renderFrame()
     term.clear()
-    
     term.setCursorPos(2, 2)
     term.setTextColor(colors.yellow)
     print("X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py))
@@ -75,7 +73,5 @@ while true do
                 py = newY
             end
         end
-    elseif event == "timer" and p1 == timerId then
-        -- таймер кадра
     end
 end
