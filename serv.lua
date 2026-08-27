@@ -8,19 +8,17 @@ modem.open(CHANNEL)
 
 monitor.setTextScale(0.5)
 
--- Инициализация pixelbox_lite (работает через сублитер 2x3)
 local box = pixelbox.new(monitor)
 local W, H = box.width, box.height
 
--- Цветовая палитра
+-- Цвета
 local SKY_COLOR = colors.cyan
-local FLOOR_COLOR_1 = colors.green
-local FLOOR_COLOR_2 = colors.lime
+local FLOOR_COLOR = colors.green -- Единый четкий зеленый цвет травы
 
 local WALL_LIGHT = colors.lightGray
 local WALL_DARK = colors.gray
 
--- Карта 12x12 (1 - стены и столбы)
+-- Карта 12x12
 local MAP_SIZE = 12
 local map = {
     {1,1,1,1,1,1,1,1,1,1,1,1},
@@ -54,14 +52,13 @@ local function render()
     local halfH = math.floor(H / 2)
     local canvas = box.canvas
 
-    -- 1. Заливка фона (Небо и Пол) напрямую в массив canvas
+    -- 1. Заливка фона (Небо и Пол)
     for y = 1, H do
         local row = canvas[y]
         if y <= halfH then
             for x = 1, W do row[x] = SKY_COLOR end
         else
-            local floorCol = (y % 2 == 0) and FLOOR_COLOR_1 or FLOOR_COLOR_2
-            for x = 1, W do row[x] = floorCol end
+            for x = 1, W do row[x] = FLOOR_COLOR end
         end
     end
 
@@ -135,7 +132,6 @@ local function render()
 
         local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
 
-        -- Запись столбца стены напрямую в двумерный массив
         for y = yMin, yMax do
             canvas[y][x] = wallColor
         end
@@ -149,8 +145,9 @@ local function update(dt)
     local rotStep = rotSpeed * dt
 
     local rot = 0
-    if keysHeld.right then rot = rot - rotStep end
-    if keysHeld.left then rot = rot + rotStep end
+    -- Реверс вращения: A (left) теперь поворачивает вправо (+rotStep), D (right) — влево (-rotStep)
+    if keysHeld.right then rot = rot + rotStep end
+    if keysHeld.left then rot = rot - rotStep end
 
     if rot ~= 0 then
         local oldDirX = dirX
