@@ -7,13 +7,14 @@ modem.open(CHANNEL)
 monitor.setTextScale(0.5)
 monitor.clear()
 
-local MW, MH = monitor.getSize()
-local W, H = MW, MH * 2
+local termW, termH = monitor.getSize()
+local W = termW
+local H = termH * 2
 
 local SKY_COLOR = colors.cyan
 local FLOOR_COLOR = colors.green
-local WALL_MAIN = colors.lightGray
-local WALL_SHADE = colors.gray
+local WALL_LIGHT = colors.lightGray
+local WALL_DARK = colors.gray
 
 local map = {
     {1,1,1,1,1,1,1,1,1,1,1,1},
@@ -39,70 +40,80 @@ local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
-local topColors, botColors = {}, {}
-for y = 1, MH do
-    topColors[y], botColors[y] = {}, {}
+local topBuf, botBuf = {}, {}
+for y = 1, termH do
+    topBuf[y] = {}
+    botBuf[y] = {}
 end
 
-local function setPixel(x, y, color)
-    local my = math.floor((y - 1) / 2) + 1
-    if y % 2 == 1 then
-        topColors[my][x] = color
+local function setPixel(x, y, col)
+    if x < 1 or x > W or y < 1 or y > H then return end
+    local cellY = math.floor((y - 1) / 2) + 1
+    if (y - 1) % 2 == 0 then
+        topBuf[cellY][x] = col
     else
-        botColors[my][x] = color
+        botBuf[cellY][x] = col
     end
 end
 
-local function drawPixelbox()
-    for y = 1, MH do
+local function flushScreen()
+    for y = 1, termH do
         monitor.setCursorPos(1, y)
-        local tRow, bRow = topColors[y], botColors[y]
+        local tRow, bRow = topBuf[y], botBuf[y]
         local tStr, bStr = {}, {}
-        
         for x = 1, W do
             tStr[x] = colors.toBlit(tRow[x])
             bStr[x] = colors.toBlit(bRow[x])
         end
-        
         monitor.blit(string.rep("\157", W), table.concat(tStr), table.concat(bStr))
     end
 end
 
 local function render()
     for x = 1, W do
-        for y = 1, H / 2 do setPixel(x, y, SKY_COLOR) end
-        for y = H / 2 + 1, H do setPixel(x, y, FLOOR_COLOR) end
+        for y = 1, math.floor(H / 2) do
+            setPixel(x, y, SKY_COLOR)
+        end
+        for y = math.floor(H / 2) + 1, H do
+            setPixel(x, y, FLOOR_COLOR)
+        end
     end
 
-    -- Коэффициент коррекции высоты для пропорциональности 1:1 в ComputerCraft
-    local heightScale = W / H
+    -- Коэффициент коррекции геометрии пикселей CraftOS для 1:1 соотношения
+    local aspectCorrection = 0.6
 
     for x = 1, W do
-        local cameraX = 2 * x / W - 1
+        local cameraX = 2 * (x - 1) / W - 1
         local rayDirX = dirX + planeX * cameraX
         local rayDirY = dirY + planeY * cameraX
 
-        local mapX, mapY = math.floor(posX), math.floor(posY)
-        
-        local deltaDistX = math.abs(1 / rayDirX)
-        local deltaDistY = math.abs(1 / rayDirY)
+        local mapX = math.floor(posX)
+        local mapY = math.floor(posY)
+
+        local deltaDistX = (rayDirX == 0) and 1e30 or math.abs(1 / rayDirX)
+        local deltaDistY = (rayDirY == 0) and 1e30 or math.abs(1 / rayDirY)
 
         local stepX, stepY
         local sideDistX, sideDistY
 
         if rayDirX < 0 then
-            stepX, sideDistX = -1, (posX - mapX) * deltaDistX
+            stepX = -1
+            sideDistX = (posX - mapX) * deltaDistX
         else
-            stepX, sideDistX = 1, (mapX + 1.0 - posX) * deltaDistX
+            stepX = 1
+            sideDistX = (mapX + 1.0 - posX) * deltaDistX
         end
 
         if rayDirY < 0 then
-            stepY, sideDistY = -1, (posY - mapY) * deltaDistY
+            stepY = -1
+            sideDistY = (posY - mapY) * deltaDistY
         else
-            stepY, sideDistY = 1, (mapY + 1.0 - posY) * deltaDistY
+            stepY = 1
+            sideDistY = (mapY + 1.0 - posY) * deltaDistY
         end
 
-        local hit, side = 0, 0
+        local hit = 0
+        local side = 0
         while hit == 0 do
             if sideDistX < sideDistY then
                 sideDistX = sideDistX + deltaDistX
@@ -113,51 +124,53 @@ local function render()
                 mapY = mapY + stepY
                 side = 1
             end
-            if map[mapY] and map[mapY][mapX] and map[mapY][mapX] > 0 then hit = 1 end
+            if map[mapY] and map[mapY][mapX] and map[mapY][mapX] > 0 then
+                hit = 1
+            end
         end
 
         local perpWallDist
         if side == 0 then
-            perpWallDist = (posX - mapX + (1 - stepX) / 2) / rayDirX
+            perpWallDist = sideDistX - deltaDistX
         else
-            perpWallDist = (posY - mapY + (1 - stepY) / 2) / rayDirY
+            perpWallDist = sideDistY - deltaDistY
         end
-        perpWallDist = math.abs(perpWallDist)
-        if perpWallDist < 0.1 then perpWallDist = 0.1 end
 
-        -- Применение коррекции высоты
-        local lineHeight = math.floor((H / perpWallDist) * heightScale)
+        if perpWallDist < 0.05 then perpWallDist = 0.05 end
+
+        local lineHeight = math.floor((H / perpWallDist) * aspectCorrection)
 
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
 
-        local clampStart = math.max(1, drawStart)
-        local clampEnd = math.min(H, drawEnd)
+        local yMin = math.max(1, drawStart)
+        local yMax = math.min(H, drawEnd)
 
-        local color = (side == 1) and WALL_SHADE or WALL_MAIN
-        for y = clampStart, clampEnd do
-            setPixel(x, y, color)
+        local col = (side == 1) and WALL_DARK or WALL_LIGHT
+        for y = yMin, yMax do
+            setPixel(x, y, col)
         end
     end
 
-    drawPixelbox()
+    flushScreen()
 end
 
-local function updatePhysics(dt)
+local function update(dt)
     local moveStep = moveSpeed * dt
     local rotStep = rotSpeed * dt
 
-    local r = 0
-    if keysHeld.right then r = r - rotStep end
-    if keysHeld.left then r = r + rotStep end
-    if r ~= 0 then
+    local rot = 0
+    if keysHeld.right then rot = rot - rotStep end
+    if keysHeld.left then rot = rot + rotStep end
+
+    if rot ~= 0 then
         local oldDirX = dirX
-        dirX = dirX * math.cos(r) - dirY * math.sin(r)
-        dirY = oldDirX * math.sin(r) + dirY * math.cos(r)
+        dirX = dirX * math.cos(rot) - dirY * math.sin(rot)
+        dirY = oldDirX * math.sin(rot) + dirY * math.cos(rot)
 
         local oldPlaneX = planeX
-        planeX = planeX * math.cos(r) - planeY * math.sin(r)
-        planeY = oldPlaneX * math.sin(r) + planeY * math.cos(r)
+        planeX = planeX * math.cos(rot) - planeY * math.sin(rot)
+        planeY = oldPlaneX * math.sin(rot) + planeY * math.cos(rot)
     end
 
     local dx, dy = 0, 0
@@ -165,17 +178,18 @@ local function updatePhysics(dt)
     if keysHeld.back then dx = dx - dirX * moveStep; dy = dy - dirY * moveStep end
 
     if dx ~= 0 then
-        local newX = posX + dx
-        local checkX = dx > 0 and (newX + RADIUS) or (newX - RADIUS)
-        if map[math.floor(posY)] and map[math.floor(posY)][math.floor(checkX)] == 0 then 
-            posX = newX 
+        local targetX = posX + dx
+        local checkX = dx > 0 and (targetX + RADIUS) or (targetX - RADIUS)
+        if map[math.floor(posY)] and map[math.floor(posY)][math.floor(checkX)] == 0 then
+            posX = targetX
         end
     end
+
     if dy ~= 0 then
-        local newY = posY + dy
-        local checkY = dy > 0 and (newY + RADIUS) or (newY - RADIUS)
-        if map[math.floor(checkY)] and map[math.floor(checkY)][math.floor(posX)] == 0 then 
-            posY = newY 
+        local targetY = posY + dy
+        local checkY = dy > 0 and (targetY + RADIUS) or (targetY - RADIUS)
+        if map[math.floor(checkY)] and map[math.floor(checkY)][math.floor(posX)] == 0 then
+            posY = targetY
         end
     end
 end
@@ -186,7 +200,7 @@ while true do
     local dt = math.min(now - lastTime, 0.05)
     lastTime = now
 
-    updatePhysics(dt)
+    update(dt)
     render()
 
     local timerId = os.startTimer(0.001)
