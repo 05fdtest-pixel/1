@@ -15,7 +15,6 @@ local FLOOR_COLOR = colors.green
 local WALL_MAIN = colors.lightGray
 local WALL_SHADE = colors.gray
 
--- Просторная квадратная карта с широкими коридорами
 local map = {
     {1,1,1,1,1,1,1,1,1,1,1,1},
     {1,0,0,0,0,0,0,0,0,0,0,1},
@@ -31,12 +30,8 @@ local map = {
 }
 
 local posX, posY = 2.5, 2.5
-local dirX, dirY = 0, 1
-
--- Корректировка угла обзора под пропорции монитора (убирает fish-eye)
-local aspect = W / H
-local fov = 0.66
-local planeX, planeY = -fov * dirY * aspect, fov * dirX * aspect
+local dirX, dirY = -1, 0
+local planeX, planeY = 0, 0.66
 
 local moveSpeed = 3.5
 local rotSpeed = 2.5
@@ -79,6 +74,9 @@ local function render()
         for y = H / 2 + 1, H do setPixel(x, y, FLOOR_COLOR) end
     end
 
+    -- Коэффициент коррекции высоты для пропорциональности 1:1 в ComputerCraft
+    local heightScale = W / H
+
     for x = 1, W do
         local cameraX = 2 * x / W - 1
         local rayDirX = dirX + planeX * cameraX
@@ -86,8 +84,8 @@ local function render()
 
         local mapX, mapY = math.floor(posX), math.floor(posY)
         
-        local deltaDistX = (rayDirX == 0) and 1e30 or math.abs(1 / rayDirX)
-        local deltaDistY = (rayDirY == 0) and 1e30 or math.abs(1 / rayDirY)
+        local deltaDistX = math.abs(1 / rayDirX)
+        local deltaDistY = math.abs(1 / rayDirY)
 
         local stepX, stepY
         local sideDistX, sideDistY
@@ -120,14 +118,15 @@ local function render()
 
         local perpWallDist
         if side == 0 then
-            perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX
+            perpWallDist = (posX - mapX + (1 - stepX) / 2) / rayDirX
         else
-            perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY
+            perpWallDist = (posY - mapY + (1 - stepY) / 2) / rayDirY
         end
+        perpWallDist = math.abs(perpWallDist)
+        if perpWallDist < 0.1 then perpWallDist = 0.1 end
 
-        if perpWallDist < 0.05 then perpWallDist = 0.05 end
-
-        local lineHeight = math.floor(H / perpWallDist)
+        -- Применение коррекции высоты
+        local lineHeight = math.floor((H / perpWallDist) * heightScale)
 
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
@@ -156,8 +155,9 @@ local function updatePhysics(dt)
         dirX = dirX * math.cos(r) - dirY * math.sin(r)
         dirY = oldDirX * math.sin(r) + dirY * math.cos(r)
 
-        planeX = -fov * dirY * aspect
-        planeY = fov * dirX * aspect
+        local oldPlaneX = planeX
+        planeX = planeX * math.cos(r) - planeY * math.sin(r)
+        planeY = oldPlaneX * math.sin(r) + planeY * math.cos(r)
     end
 
     local dx, dy = 0, 0
