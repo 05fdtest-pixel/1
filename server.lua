@@ -8,11 +8,11 @@ modem.open(CHANNEL)
 
 monitor.setTextScale(0.5)
 
--- Инициализация холста
+-- Инициализация pixelbox_lite (работает через сублитер 2x3)
 local box = pixelbox.new(monitor)
 local W, H = box.width, box.height
 
--- Палитра
+-- Цветовая палитра
 local SKY_COLOR = colors.cyan
 local FLOOR_COLOR_1 = colors.green
 local FLOOR_COLOR_2 = colors.lime
@@ -20,7 +20,7 @@ local FLOOR_COLOR_2 = colors.lime
 local WALL_LIGHT = colors.lightGray
 local WALL_DARK = colors.gray
 
--- Карта 12x12 (Стены и 4 столба внутри одного цвета)
+-- Карта 12x12 (1 - стены и столбы)
 local MAP_SIZE = 12
 local map = {
     {1,1,1,1,1,1,1,1,1,1,1,1},
@@ -37,7 +37,7 @@ local map = {
     {1,1,1,1,1,1,1,1,1,1,1,1}
 }
 
--- Позиция игрока
+-- Игрок
 local posX, posY = 2.5, 2.5
 local dirX, dirY = 1.0, 0.0
 
@@ -54,7 +54,7 @@ local function render()
     local halfH = math.floor(H / 2)
     local canvas = box.canvas
 
-    -- 1. Небо и пол через прямую запись в массив canvas
+    -- 1. Заливка фона (Небо и Пол) напрямую в массив canvas
     for y = 1, H do
         local row = canvas[y]
         if y <= halfH then
@@ -65,7 +65,7 @@ local function render()
         end
     end
 
-    -- 2. Трассировка лучей
+    -- 2. Трассировка лучей (Raycasting)
     for x = 1, W do
         local cameraX = 2 * (x - 1) / (W - 1) - 1
         local rayDirX = dirX + planeX * cameraX
@@ -135,7 +135,7 @@ local function render()
 
         local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
 
-        -- Отрисовка полосы стены напрямую в матрицу canvas
+        -- Запись столбца стены напрямую в двумерный массив
         for y = yMin, yMax do
             canvas[y][x] = wallColor
         end
