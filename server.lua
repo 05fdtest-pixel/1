@@ -8,7 +8,7 @@ modem.open(CHANNEL)
 
 monitor.setTextScale(0.5)
 
--- Инициализация холста pixelbox_lite
+-- Инициализация pixelbox_lite
 local box = pixelbox.new(monitor)
 local W, H = box.width, box.height
 
@@ -52,17 +52,20 @@ local keysHeld = { forward = false, back = false, left = false, right = false }
 
 local function render()
     local halfH = math.floor(H / 2)
+    local canvas = box.canvas
     
-    -- 1. Небо
-    box:box(1, 1, W, halfH, SKY_COLOR)
-    
-    -- 2. Пол с сеткой
-    for y = halfH + 1, H do
-        local col = (y % 2 == 0) and FLOOR_COLOR_1 or FLOOR_COLOR_2
-        box:line(1, y, W, y, col)
+    -- 1. Заливка фона (Небо и Пол)
+    for y = 1, H do
+        local row = canvas[y]
+        if y <= halfH then
+            for x = 1, W do row[x] = SKY_COLOR end
+        else
+            local floorCol = (y % 2 == 0) and FLOOR_COLOR_1 or FLOOR_COLOR_2
+            for x = 1, W do row[x] = floorCol end
+        end
     end
 
-    -- 3. Лучи
+    -- 2. Рендер стен (Raycasting)
     for x = 1, W do
         local cameraX = 2 * (x - 1) / (W - 1) - 1
         local rayDirX = dirX + planeX * cameraX
@@ -132,7 +135,10 @@ local function render()
 
         local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
 
-        box:line(x, yMin, x, yMax, wallColor)
+        -- Рисуем вертикальный столбец напрямую в буфер холста
+        for y = yMin, yMax do
+            canvas[y][x] = wallColor
+        end
     end
 
     box:render()
