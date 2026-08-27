@@ -1,4 +1,4 @@
-local pixelbox = require("pixelbox")
+local pixelbox = require("pixelbox_lite")
 
 local monitor = peripheral.wrap("left") or peripheral.wrap("monitor_11")
 local modem = peripheral.wrap("right")
@@ -8,6 +8,7 @@ modem.open(CHANNEL)
 
 monitor.setTextScale(0.5)
 
+-- Инициализация холста pixelbox_lite
 local box = pixelbox.new(monitor)
 local W, H = box.width, box.height
 
@@ -16,7 +17,6 @@ local SKY_COLOR = colors.cyan
 local FLOOR_COLOR_1 = colors.green
 local FLOOR_COLOR_2 = colors.lime
 
--- Серые стены и столбы одного цвета
 local WALL_LIGHT = colors.lightGray
 local WALL_DARK = colors.gray
 
@@ -56,7 +56,7 @@ local function render()
     -- 1. Небо
     box:box(1, 1, W, halfH, SKY_COLOR)
     
-    -- 2. Пол с сеткой для объема
+    -- 2. Пол с сеткой
     for y = halfH + 1, H do
         local col = (y % 2 == 0) and FLOOR_COLOR_1 or FLOOR_COLOR_2
         box:line(1, y, W, y, col)
@@ -130,7 +130,6 @@ local function render()
         local yMin = math.max(1, drawStart)
         local yMax = math.min(H, drawEnd)
 
-        -- И стены, и столбы выкрашены в единый серый цвет
         local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
 
         box:line(x, yMin, x, yMax, wallColor)
