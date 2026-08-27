@@ -7,97 +7,57 @@ modem.open(CHANNEL)
 monitor.setTextScale(0.5)
 monitor.clear()
 
-local MW, MH = monitor.getSize()
-local W = MW
-local H = MH * 2 -- Двойное вертикальное разрешение за счет спецсимволов
+local W, H = monitor.getSize()
 
 -- Цвета
-local SKY_COLOR = colors.cyan
-local FLOOR_COLOR = colors.green
-local WALL_MAIN = colors.lightGray
-local WALL_SHADE = colors.gray
+local SKY_COLOR = colors.toBlit(colors.cyan)
+local FLOOR_COLOR = colors.toBlit(colors.green)
+local WALL_LIGHT = colors.toBlit(colors.lightGray)
+local WALL_DARK = colors.toBlit(colors.gray)
 
--- Карта помещения
+-- Карта 10x10, полностью замкнутая со всех сторон
+local MAP_SIZE = 10
 local map = {
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
+    {1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1}
 }
 
 -- Игрок
-local posX, posY = 5.0, 5.0
+local posX, posY = 5.5, 5.5
 local dirX, dirY = -1.0, 0.0
--- Увеличенный вектор обзора (plane), чтобы стены не обрезались по бокам
-local planeX, planeY = 0.0, 0.75 
 
-local moveSpeed = 3.5
-local rotSpeed = 2.5
+-- Корректировка угла обзора под пиксели монитора CC ( Aspect Ratio ~ 0.45 )
+local FOV = 0.66
+local planeX, planeY = 0.0, FOV * (H / W) * 0.45
+
+local moveSpeed = 3.0
+local rotSpeed = 2.0
 local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
--- Виртуальный пиксельный буфер (W x H)
-local buffer = {}
-for y = 1, H do
-    buffer[y] = {}
-end
-
-local function clearBuffer()
-    local halfH = math.floor(H / 2)
-    for y = 1, halfH do
-        local row = buffer[y]
-        for x = 1, W do row[x] = SKY_COLOR end
-    end
-    for y = halfH + 1, H do
-        local row = buffer[y]
-        for x = 1, W do row[x] = FLOOR_COLOR end
-    end
-end
-
-local function drawVerticalLine(x, yMin, yMax, color)
-    if yMin < 1 then yMin = 1 end
-    if yMax > H then yMax = H end
-    for y = yMin, yMax do
-        buffer[y][x] = color
-    end
-end
-
--- Мгновенный вывод буфера без мерцаний через blit
-local function flushBuffer()
-    for cy = 1, MH do
-        local topY = (cy - 1) * 2 + 1
-        local botY = topY + 1
-        
-        local topRow = buffer[topY]
-        local botRow = buffer[botY]
-        
-        local tChars, tFG, tBG = {}, {}, {}
-        for x = 1, W do
-            tChars[x] = "\157" -- Нижний полублок
-            tFG[x] = colors.toBlit(botRow[x])
-            tBG[x] = colors.toBlit(topRow[x])
-        end
-        
-        monitor.setCursorPos(1, cy)
-        monitor.blit(table.concat(tChars), table.concat(tFG), table.concat(tBG))
-    end
-end
-
 local function render()
-    clearBuffer()
-
-    -- ASPECT_RATIO компенсирует прямоугольность символов терминов Minecraft
-    local ASPECT_RATIO = 1.6 
+    -- Рендерим капотные столбцы прямо в текстовые буферы строк экрана
+    local screenFG = {}
+    local screenBG = {}
+    
+    local halfH = math.floor(H / 2)
+    for y = 1, H do
+        screenFG[y] = {}
+        screenBG[y] = {}
+    end
 
     for x = 1, W do
-        local cameraX = 2 * (x - 1) / W - 1
+        -- Нормализованная координата X на экране [-1; 1]
+        local cameraX = 2 * (x - 1) / (W - 1) - 1
         local rayDirX = dirX + planeX * cameraX
         local rayDirY = dirY + planeY * cameraX
 
@@ -129,6 +89,7 @@ local function render()
         local hit = 0
         local side = 0
 
+        -- Цикл трассировки луча
         while hit == 0 do
             if sideDistX < sideDistY then
                 sideDistX = sideDistX + deltaDistX
@@ -139,11 +100,16 @@ local function render()
                 mapY = mapY + stepY
                 side = 1
             end
-            if map[mapY] and map[mapY][mapX] and map[mapY][mapX] > 0 then
+
+            -- Проверка на границы карты во избежание вылетов и дыр
+            if mapX < 1 or mapX > MAP_SIZE or mapY < 1 or mapY > MAP_SIZE then
+                hit = 1
+            elseif map[mapY][mapX] > 0 then
                 hit = 1
             end
         end
 
+        -- Перпендикулярная дистанция до стены (убирает эффекты рыбьего глаза)
         local perpWallDist
         if side == 0 then
             perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX
@@ -151,18 +117,37 @@ local function render()
             perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY
         end
 
-        if perpWallDist < 0.05 then perpWallDist = 0.05 end
+        if perpWallDist < 0.01 then perpWallDist = 0.01 end
 
-        -- Умножение на ASPECT_RATIO подтягивает высоту стены до нормального 3D вида
-        local lineHeight = math.floor((H / perpWallDist) * ASPECT_RATIO)
+        -- Расчет высоты стены
+        local lineHeight = math.floor(H / perpWallDist)
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
 
-        local col = (side == 1) and WALL_SHADE or WALL_MAIN
-        drawVerticalLine(x, drawStart, drawEnd, col)
+        local yMin = math.max(1, drawStart)
+        local yMax = math.min(H, drawEnd)
+
+        local wallColor = (side == 1) and WALL_DARK or WALL_LIGHT
+
+        -- Заполнение столбца x
+        for y = 1, H do
+            if y < yMin then
+                screenBG[y][x] = SKY_COLOR
+            elseif y > yMax then
+                screenBG[y][x] = FLOOR_COLOR
+            else
+                screenBG[y][x] = wallColor
+            end
+            screenFG[y][x] = "0" -- Заглушка цвета текста
+        end
     end
 
-    flushBuffer()
+    -- Отрисовка готового кадра на монитор без лагов
+    local emptyText = string.rep(" ", W)
+    for y = 1, H do
+        monitor.setCursorPos(1, y)
+        monitor.blit(emptyText, table.concat(screenFG[y]), table.concat(screenBG[y]))
+    end
 end
 
 local function update(dt)
