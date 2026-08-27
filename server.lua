@@ -1,5 +1,9 @@
 local pixelbox = require("pixelbox_lite")
 
+-- Создаем холст (буфер) для монитора. 
+-- По умолчанию можно привязать к стандартному термы или монитору
+local screen = pixelbox.new(term.current())
+
 local modemSide = "right"
 if peripheral.getType(modemSide) ~= "modem" and peripheral.getType(modemSide) ~= "wireless_modem" then
     error("Wireless modem not found on 'right' side!")
@@ -33,12 +37,15 @@ local function isWall(x, y)
 end
 
 local function renderFrame()
-    term.clear()
+    -- Очищаем буфер pixelbox через метод объекта
+    screen:clear(colors.black)
     
-    pixelbox.drawText(2, 2, "X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py), colors.green)
-    pixelbox.drawText(2, 3, "Angle: " .. string.format("%.2f", pfa), colors.cyan)
+    -- Рисуем текст через метод объекта screen
+    screen:drawText(2, 2, "X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py), colors.green)
+    screen:drawText(2, 3, "Angle: " .. string.format("%.2f", pfa), colors.cyan)
     
-    pixelbox.flush()
+    -- Отправляем буфер на экран
+    screen:flush()
 end
 
 while true do
