@@ -29,9 +29,9 @@ local posX, posY = 2.5, 2.5
 local dirX, dirY = -1, 0
 local planeX, planeY = 0, 0.66
 
-local moveSpeed = 3.0
-local rotSpeed = 2.2
-local RADIUS = 0.25
+local moveSpeed = 3.2
+local rotSpeed = 2.5
+local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
@@ -76,8 +76,9 @@ local function render()
         local rayDirY = dirY + planeY * cameraX
 
         local mapX, mapY = math.floor(posX), math.floor(posY)
-        local deltaDistX = math.abs(1 / rayDirX)
-        local deltaDistY = math.abs(1 / rayDirY)
+        
+        local deltaDistX = (rayDirX == 0) and 1e30 or math.abs(1 / rayDirX)
+        local deltaDistY = (rayDirY == 0) and 1e30 or math.abs(1 / rayDirY)
 
         local stepX, stepY
         local sideDistX, sideDistY
@@ -105,17 +106,22 @@ local function render()
                 mapY = mapY + stepY
                 side = 1
             end
-            if map[mapY] and map[mapY][mapX] > 0 then hit = 1 end
+            if map[mapY] and map[mapY][mapX] and map[mapY][mapX] > 0 then hit = 1 end
         end
 
         local perpWallDist = (side == 0) and (sideDistX - deltaDistX) or (sideDistY - deltaDistY)
+        if perpWallDist < 0.1 then perpWallDist = 0.1 end
+
         local lineHeight = math.floor(H / perpWallDist)
 
-        local drawStart = math.max(1, math.floor(-lineHeight / 2 + H / 2))
-        local drawEnd = math.min(H, math.floor(lineHeight / 2 + H / 2))
+        local drawStart = math.floor(-lineHeight / 2 + H / 2)
+        local drawEnd = math.floor(lineHeight / 2 + H / 2)
+
+        local clampStart = math.max(1, drawStart)
+        local clampEnd = math.min(H, drawEnd)
 
         local color = (side == 1) and WALL_SHADE or WALL_MAIN
-        for y = drawStart, drawEnd do
+        for y = clampStart, clampEnd do
             setPixel(x, y, color)
         end
     end
@@ -146,19 +152,23 @@ local function updatePhysics(dt)
     if dx ~= 0 then
         local newX = posX + dx
         local checkX = dx > 0 and (newX + RADIUS) or (newX - RADIUS)
-        if map[math.floor(posY)][math.floor(checkX)] == 0 then posX = newX end
+        if map[math.floor(posY)] and map[math.floor(posY)][math.floor(checkX)] == 0 then 
+            posX = newX 
+        end
     end
     if dy ~= 0 then
         local newY = posY + dy
         local checkY = dy > 0 and (newY + RADIUS) or (newY - RADIUS)
-        if map[math.floor(checkY)][math.floor(posX)] == 0 then posY = newY end
+        if map[math.floor(checkY)] and map[math.floor(checkY)][math.floor(posX)] == 0 then 
+            posY = newY 
+        end
     end
 end
 
 local lastTime = os.clock()
 while true do
     local now = os.clock()
-    local dt = math.min(now - lastTime, 0.1)
+    local dt = math.min(now - lastTime, 0.05)
     lastTime = now
 
     updatePhysics(dt)
