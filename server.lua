@@ -1,3 +1,7 @@
+-- Подключаем Pixelbox Lite (убедись, что файл pixelbox_lite.lua скачан)
+local pixelbox = require("pixelbox_lite")
+
+-- Открываем беспроводной модем справа
 local modemSide = "right"
 if peripheral.getType(modemSide) ~= "modem" and peripheral.getType(modemSide) ~= "wireless_modem" then
     error("Wireless modem not found on the 'right' side of the server!")
@@ -7,71 +11,45 @@ rednet.open(modemSide)
 print("Server started successfully!")
 print("My Server ID: " .. os.getComputerID())
 
-local map = {
-    {1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,1},
-    {1,0,1,1,0,1,0,1},
-    {1,0,1,0,0,1,0,1},
-    {1,0,0,0,1,1,0,1},
-    {1,1,1,0,0,0,0,1},
-    {1,0,0,0,1,1,0,1},
-    {1,1,1,1,1,1,1,1},
-}
-
+-- Начальные координаты и угол обзора игрока в 3D мире
 local px, py, pfa = 3.5, 3.5, 0
-local MOVE_SPEED = 0.08
-local ROT_SPEED = 0.05
 
-local function isWall(x, y)
-    local mx = math.floor(x) + 1
-    local my = math.floor(y) + 1
-    if mx < 1 or mx > 8 or my < 1 or my > 8 then return true end
-    return map[my][mx] == 1
-end
-
+-- Функция отрисовки (пример минимального кадра)
 local function renderFrame()
-    term.clear()
-    term.setCursorPos(2, 2)
-    term.setTextColor(colors.yellow)
-    print("X: " .. string.format("%.2f", px) .. " Y: " .. string.format("%.2f", py))
-    
-    term.setCursorPos(2, 3)
-    term.setTextColor(colors.cyan)
-    print("Angle: " .. string.format("%.2f", pfa))
+    pixelbox.clear(colors.black)
+    -- Здесь происходит вся логика рейкастинга...
+    pixelbox.drawText(2, 2, "X: " .. math.floor(px) .. " Y: " .. math.floor(py), colors.yellow)
+    pixelbox.flush()
 end
 
+-- Основной игровой цикл
 while true do
     renderFrame()
 
-    local timerId = os.startTimer(0.02)
+    -- Ждем события с таймаутом, чтобы игра не замерзала на месте
+    local timerId = os.startTimer(0.05)
     local event, p1, p2, p3 = os.pullEvent()
 
     if event == "rednet_message" then
         local senderId, message = p1, p2
+        -- Проверяем, что сообщение пришло от нашего пульта и это событие клавиши
         if type(message) == "table" and message.type == "key" then
             local key = message.key
             
-            local newX = px
-            local newY = py
-            
+            -- Логика управления движением
             if key == keys.w then
-                newX = px + math.cos(pfa) * MOVE_SPEED
-                newY = py + math.sin(pfa) * MOVE_SPEED
+                px = px + math.cos(pfa) * 0.2
+                py = py + math.sin(pfa) * 0.2
             elseif key == keys.s then
-                newX = px - math.cos(pfa) * MOVE_SPEED
-                newY = py - math.sin(pfa) * MOVE_SPEED
+                px = px - math.cos(pfa) * 0.2
+                py = py - math.sin(pfa) * 0.2
             elseif key == keys.a then
-                pfa = pfa - ROT_SPEED
+                pfa = pfa - 0.2
             elseif key == keys.d then
-                pfa = pfa + ROT_SPEED
-            end
-            
-            if not isWall(newX, py) then
-                px = newX
-            end
-            if not isWall(px, newY) then
-                py = newY
+                pfa = pfa + 0.2
             end
         end
+    elseif event == "timer" and p1 == timerId then
+        -- Срабатывает таймер обновления кадра, ничего делать не нужно
     end
 end
