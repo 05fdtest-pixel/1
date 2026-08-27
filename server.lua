@@ -4,6 +4,8 @@ local modem = peripheral.wrap("right")
 local CHANNEL = 15
 modem.open(CHANNEL)
 
+-- Настраиваем монитор для работы с paintutils
+term.redirect(monitor)
 monitor.setTextScale(0.5)
 monitor.clear()
 
@@ -15,37 +17,37 @@ local FLOOR_COLOR = colors.green
 local WALL_MAIN = colors.lightGray
 local WALL_SHADE = colors.gray
 
--- Простая комната 6x6 (широкая, без мелких туннелей)
+-- Карта помещения (1 - стена, 0 - пусто)
 local map = {
-    {1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,1},
-    {1,1,1,1,1,1,1,1}
+    {1, 1, 1, 1, 1, 1, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 1},
+    {1, 1, 1, 1, 1, 1, 1, 1}
 }
 
--- Игрок ровно в центре
+-- Игрок
 local posX, posY = 4.5, 4.5
 local dirX, dirY = -1.0, 0.0
 local planeX, planeY = 0.0, 0.66
 
-local moveSpeed = 3.5
-local rotSpeed = 2.5
+local moveSpeed = 3.0
+local rotSpeed = 2.0
 local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
 local function render()
-    -- 1. Рисуем чистое Голубое Небо (верхняя половина)
+    -- 1. Небо (голубой верх)
     paintutils.drawFilledBox(1, 1, W, math.floor(H / 2), SKY_COLOR)
     
-    -- 2. Рисуем чистый Зеленый Пол (нижняя половина)
+    -- 2. Пол (зеленый низ)
     paintutils.drawFilledBox(1, math.floor(H / 2) + 1, W, H, FLOOR_COLOR)
 
-    -- 3. Рендерим Стены по столбцам
+    -- 3. Рендер стен
     for x = 1, W do
         local cameraX = 2 * (x - 1) / W - 1
         local rayDirX = dirX + planeX * cameraX
@@ -78,6 +80,7 @@ local function render()
 
         local hit = 0
         local side = 0
+
         while hit == 0 do
             if sideDistX < sideDistY then
                 sideDistX = sideDistX + deltaDistX
@@ -102,20 +105,15 @@ local function render()
 
         if perpWallDist < 0.1 then perpWallDist = 0.1 end
 
-        -- Высота стены
         local lineHeight = math.floor(H / perpWallDist)
-
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
 
         local yMin = math.max(1, drawStart)
         local yMax = math.min(H, drawEnd)
 
-        -- Цвет стены (светлый/тёмный для граней)
-        local wallColor = (side == 1) and WALL_SHADE or WALL_MAIN
-        
-        -- Отрисовка вертикальной линии стены
-        paintutils.drawLine(x, yMin, x, yMax, wallColor)
+        local col = (side == 1) and WALL_SHADE or WALL_MAIN
+        paintutils.drawLine(x, yMin, x, yMax, col)
     end
 end
 
