@@ -1,5 +1,5 @@
 -- Карманный ПК (Беспроводной пульт)
-local SERVER_ID = 0 -- ЗАМЕНИТЕ 0 НА ID СЕРВЕРА!
+local SERVER_ID = 11 -- ЗАМЕНИТЕ 0 НА ID СЕРВЕРА!
 
 local modemSide = nil
 for _, side in ipairs(peripheral.getNames()) do
