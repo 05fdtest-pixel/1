@@ -1,5 +1,5 @@
 -- Карманный пульт управления
-local SERVER_ID = 0 -- Вставь сюда ID главного компьютера (сервера)
+local SERVER_ID = 11 -- Вставь сюда ID главного компьютера (сервера)
 
 local modemSide = nil
 for _, side in ipairs(peripheral.getNames()) do
