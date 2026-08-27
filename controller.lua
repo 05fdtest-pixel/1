@@ -1,4 +1,4 @@
-local SERVER_ID = 0 -- Замени 0 на ID твоего сервера!
+local SERVER_ID = 11 -- Замени 0 на ID твоего сервера!
 
 local modemSide = nil
 for _, side in ipairs(peripheral.getNames()) do
