@@ -7,42 +7,43 @@ modem.open(CHANNEL)
 monitor.setTextScale(0.5)
 monitor.clear()
 
-local termW, termH = monitor.getSize()
-local W = termW
-local H = termH * 2
+local MW, MH = monitor.getSize()
+local W = MW
+local H = MH * 2
 
 local SKY_COLOR = colors.cyan
 local FLOOR_COLOR = colors.green
 local WALL_LIGHT = colors.lightGray
 local WALL_DARK = colors.gray
 
--- Огромная квадратная комната 8x8 без узких проходов
+-- Карта: Просторный квадратный холл со стенками по периметру
 local map = {
-    {1,1,1,1,1,1,1,1,1,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,0,0,0,0,0,0,0,0,1},
-    {1,1,1,1,1,1,1,1,1,1}
+    {1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,0,0,0,0,0,0,0,0,0,0,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1}
 }
 
--- Игрок стоит в центре широкой комнаты
-local posX, posY = 5.0, 5.0
+-- Игрок в центре комнаты
+local posX, posY = 6.0, 5.0
 local dirX, dirY = -1.0, 0.0
 local planeX, planeY = 0.0, 0.66
 
-local moveSpeed = 4.0
-local rotSpeed = 3.0
+local moveSpeed = 3.5
+local rotSpeed = 2.5
 local RADIUS = 0.2
 
 local keysHeld = { forward = false, back = false, left = false, right = false }
 
+-- Буфер пикселей
 local topBuf, botBuf = {}, {}
-for y = 1, termH do
+for y = 1, MH do
     topBuf[y] = {}
     botBuf[y] = {}
 end
@@ -58,7 +59,7 @@ local function setPixel(x, y, col)
 end
 
 local function flushScreen()
-    for y = 1, termH do
+    for y = 1, MH do
         monitor.setCursorPos(1, y)
         local tR, bR = topBuf[y], botBuf[y]
         local tStr, bStr = {}, {}
@@ -71,7 +72,7 @@ local function flushScreen()
 end
 
 local function render()
-    -- Базовая заливка неба и пола
+    -- Небо и пол
     local halfH = math.floor(H / 2)
     for x = 1, W do
         for y = 1, halfH do
@@ -81,9 +82,6 @@ local function render()
             setPixel(x, y, FLOOR_COLOR)
         end
     end
-
-    -- МАСШТАБНЫЙ МНОЖИТЕЛЬ: компенсирует сплющивание на мониторе CC
-    local DISPLAY_SCALE = 1.6
 
     for x = 1, W do
         local cameraX = 2 * (x - 1) / W - 1
@@ -132,7 +130,6 @@ local function render()
             end
         end
 
-        -- Вычисление честной перпендикулярной дистанции (убирает эффекты линзы)
         local perpWallDist
         if side == 0 then
             perpWallDist = (mapX - posX + (1 - stepX) / 2) / rayDirX
@@ -140,10 +137,10 @@ local function render()
             perpWallDist = (mapY - posY + (1 - stepY) / 2) / rayDirY
         end
 
-        if perpWallDist < 0.1 then perpWallDist = 0.1 end
+        if perpWallDist < 0.01 then perpWallDist = 0.01 end
 
-        -- Правильная вертикальная проекция
-        local lineHeight = math.floor((H / perpWallDist) * DISPLAY_SCALE)
+        -- Нормальная высота стены без искажений пропорций
+        local lineHeight = math.floor(H / perpWallDist)
 
         local drawStart = math.floor(-lineHeight / 2 + H / 2)
         local drawEnd = math.floor(lineHeight / 2 + H / 2)
