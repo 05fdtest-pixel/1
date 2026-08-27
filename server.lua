@@ -6,7 +6,6 @@ if peripheral.getType(modemSide) ~= "modem" and peripheral.getType(modemSide) ~=
 end
 rednet.open(modemSide)
 
--- Инициализация Pixelbox
 local box = pixelbox.new(term.current())
 
 local map = {
@@ -22,7 +21,6 @@ local map = {
 
 local px, py, pfa = 3.5, 3.5, 0
 
--- Настройки плавной скорости и поворота
 local MOVE_SPEED = 0.08
 local ROT_SPEED = 0.05
 
@@ -36,11 +34,19 @@ local function isWall(x, y)
 end
 
 local function renderRaycasting()
-    -- Быстрая очистка экрана через закрашивание буфера
-    box:rect(1, 1, pw, ph / 2, colors.cyan)      -- Небо
-    box:rect(1, ph / 2 + 1, pw, ph, colors.green) -- Пол
+    -- 1. Закрашиваем небо и пол напрямую в массиве canvas
+    for y = 1, math.floor(ph / 2) do
+        for x = 1, pw do
+            box.canvas[y][x] = colors.cyan
+        end
+    end
+    for y = math.floor(ph / 2) + 1, ph do
+        for x = 1, pw do
+            box.canvas[y][x] = colors.green
+        end
+    end
 
-    -- Отрисовка 3D лучей
+    -- 2. Рендерим 3D стены
     for x = 1, pw do
         local camX = 2 * x / pw - 1
         local rayAngle = pfa + math.atan(camX * 0.66)
@@ -72,10 +78,15 @@ local function renderRaycasting()
         local yEnd = math.min(ph, math.floor(ph / 2 + wallHeight / 2))
 
         local wallColor = (side == 1) and colors.gray or colors.lightGray
-        box:rect(x, yStart, 1, yEnd - yStart + 1, wallColor)
+
+        -- Записываем пиксели стены прямо в матрицу
+        for y = yStart, yEnd do
+            box.canvas[y][x] = wallColor
+        end
     end
 
-    box:draw()
+    -- Выводим готовый кадр из буфера на экран
+    box:render()
 end
 
 while true do
